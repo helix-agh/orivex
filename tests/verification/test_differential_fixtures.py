@@ -30,5 +30,7 @@ def test_r_fixture_metadata_and_input_checksum(fixture_path: Path) -> None:
     assert fixture.flacco_version
     assert fixture.r_version
     assert fixture.feature_sets == ("ela_distr", "ela_meta", "disp", "nbc", "ic", "pca")
+    assert fixture.feature_parameters["ic"]["nn_start"] == "lexicographically_smallest_x"
+    assert fixture.feature_parameters["nbc"]["distance_tie_breaker"] == "first"
     assert sha256_file(FIXTURE_ROOT / fixture.input_file) == fixture.input_sha256
     assert fixture.values

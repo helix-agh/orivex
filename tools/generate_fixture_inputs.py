@@ -52,6 +52,21 @@ def main() -> None:
         "generator": "numpy.random.PCG64",
         "generator_seed": 20260830,
         "feature_sets": ["ela_distr", "ela_meta", "disp", "nbc", "ic", "pca"],
+        "feature_parameters": {
+            "ic": {
+                "sorting": "nn",
+                "nn_neighborhood": 20,
+                "nn_start": "lexicographically_smallest_x",
+                "epsilon": "0 + logspace(-5, 15, 1000)",
+                "settling_sensitivity": 0.05,
+                "info_sensitivity": 0.5,
+            },
+            "nbc": {
+                "distance": "euclidean",
+                "fast_k": 0.05,
+                "distance_tie_breaker": "first",
+            },
+        },
         "cases": cases,
     }
     (FIXTURE_ROOT / "manifest.json").write_text(

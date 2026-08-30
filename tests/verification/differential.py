@@ -16,6 +16,7 @@ class DifferentialFixture:
     r_version: str
     flacco_version: str
     feature_sets: tuple[str, ...]
+    feature_parameters: dict[str, Any]
     values: dict[str, float | int | None]
 
 
@@ -37,6 +38,7 @@ def load_differential_fixture(path: Path) -> DifferentialFixture:
         r_version=str(raw["r_version"]),
         flacco_version=str(raw["flacco_version"]),
         feature_sets=tuple(raw["feature_sets"]),
+        feature_parameters=dict(raw["feature_parameters"]),
         values=dict(raw["values"]),
     )
     if fixture.schema_version != 1:

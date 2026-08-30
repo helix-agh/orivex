@@ -1,0 +1,333 @@
+"""Compare pflacco and bflacco IC/NBC CPU and wall time.
+
+Both implementations receive the same sphere samples. IC uses the same explicit
+lexicographic starting observation, epsilon grid, and nearest-neighbour sorting policy.
+NBC uses Euclidean distances and deterministic first-index tie handling. Numerical outputs
+are verified before any timing result is accepted.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import json
+import platform
+import statistics
+import sys
+import time
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import scipy
+import sklearn
+from threadpoolctl import threadpool_info, threadpool_limits
+
+import bflacco
+from bflacco import LandscapeSample, compute
+
+
+@dataclass(frozen=True, slots=True)
+class Timing:
+    cpu_seconds: float
+    wall_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class Comparison:
+    observations: int
+    dimension: int
+    family: str
+    mode: str
+    pflacco: Timing
+    bflacco: Timing
+    cpu_speedup: float
+    wall_speedup: float
+
+
+def measure_once(function: Callable[[], object], *, calls: int) -> Timing:
+    cpu_started = time.process_time_ns()
+    wall_started = time.perf_counter_ns()
+    for _ in range(calls):
+        function()
+    wall_seconds = (time.perf_counter_ns() - wall_started) / calls / 1e9
+    cpu_seconds = (time.process_time_ns() - cpu_started) / calls / 1e9
+    return Timing(cpu_seconds, wall_seconds)
+
+
+def measure_pair(
+    pflacco_call: Callable[[], object],
+    bflacco_call: Callable[[], object],
+    *,
+    repeats: int,
+    calls: int,
+) -> tuple[Timing, Timing]:
+    """Measure both implementations in alternating order to limit order bias."""
+    samples: dict[str, list[Timing]] = {"pflacco": [], "bflacco": []}
+    for repeat in range(repeats):
+        ordered = (
+            (("pflacco", pflacco_call), ("bflacco", bflacco_call))
+            if repeat % 2 == 0
+            else (("bflacco", bflacco_call), ("pflacco", pflacco_call))
+        )
+        for name, function in ordered:
+            samples[name].append(measure_once(function, calls=calls))
+
+    def median(items: list[Timing]) -> Timing:
+        return Timing(
+            statistics.median(item.cpu_seconds for item in items),
+            statistics.median(item.wall_seconds for item in items),
+        )
+
+    return median(samples["pflacco"]), median(samples["bflacco"])
+
+
+def load_pflacco_calculators(pflacco_root: Path) -> tuple[Callable, Callable, str]:
+    resolved = pflacco_root.resolve()
+    source_file = resolved / "pflacco" / "classical_ela_features.py"
+    if not source_file.is_file():
+        raise FileNotFoundError(f"not a pflacco source checkout: {resolved}")
+    sys.path.insert(0, str(resolved))
+    try:
+        module = importlib.import_module("pflacco.classical_ela_features")
+    finally:
+        sys.path.pop(0)
+    module_file = module.__file__
+    if module_file is None:
+        raise RuntimeError("the loaded pflacco module has no source path")
+    return (
+        module.calculate_information_content,
+        module.calculate_nbc,
+        str(Path(module_file).resolve()),
+    )
+
+
+def lexicographic_start(x: np.ndarray) -> int:
+    keys = tuple(x[:, column] for column in range(x.shape[1] - 1, -1, -1))
+    return int(np.lexsort(keys)[0])
+
+
+def bflacco_values(result) -> dict[str, float]:
+    values = {}
+    for name, output in result.values.items():
+        if output.value is None:
+            message = f"bflacco returned {output.status.value} for {name}: {output.message}"
+            raise AssertionError(message)
+        values[name] = float(output.value)
+    return values
+
+
+def verified(
+    pflacco_call: Callable[[], dict[str, object]],
+    bflacco_call: Callable[[], object],
+) -> None:
+    legacy = pflacco_call()
+    current = bflacco_values(bflacco_call())
+    expected = {name: float(legacy[name]) for name in current}
+    np.testing.assert_allclose(
+        np.array(tuple(current.values())),
+        np.array(tuple(expected.values())),
+        rtol=2e-12,
+        atol=2e-12,
+    )
+
+
+def compare_case(
+    calculate_ic: Callable,
+    calculate_nbc: Callable,
+    *,
+    observations: int,
+    dimension: int,
+    rng: np.random.Generator,
+    repeats: int,
+    calls: int,
+) -> list[Comparison]:
+    x = rng.uniform(-5.0, 5.0, size=(observations, dimension))
+    y = np.sum(x * x, axis=1)
+    lower = np.full(dimension, -5.0)
+    upper = np.full(dimension, 5.0)
+    frame = pd.DataFrame(x, columns=[f"x{index}" for index in range(dimension)])
+    series = pd.Series(y, name="y")
+    sample = LandscapeSample(x, y, lower, upper)
+    start = lexicographic_start(x)
+
+    def pflacco_ic_prepared() -> dict[str, object]:
+        return calculate_ic(frame, series, ic_nn_start=start, seed=20260830)
+
+    def pflacco_ic_end_to_end() -> dict[str, object]:
+        return calculate_ic(x, y, ic_nn_start=start, seed=20260830)
+
+    def bflacco_ic_prepared():
+        return compute(sample, "ic.*")
+
+    def bflacco_ic_end_to_end():
+        return compute(LandscapeSample(x, y, lower, upper), "ic.*")
+
+    def pflacco_nbc_prepared() -> dict[str, object]:
+        return calculate_nbc(frame, series, dist_tie_breaker="first")
+
+    def pflacco_nbc_end_to_end() -> dict[str, object]:
+        return calculate_nbc(x, y, dist_tie_breaker="first")
+
+    def bflacco_nbc_prepared():
+        return compute(sample, "nbc.*")
+
+    def bflacco_nbc_end_to_end():
+        return compute(LandscapeSample(x, y, lower, upper), "nbc.*")
+
+    call_sets = (
+        ("ic", "prepared", pflacco_ic_prepared, bflacco_ic_prepared),
+        ("ic", "end_to_end", pflacco_ic_end_to_end, bflacco_ic_end_to_end),
+        ("nbc", "prepared", pflacco_nbc_prepared, bflacco_nbc_prepared),
+        ("nbc", "end_to_end", pflacco_nbc_end_to_end, bflacco_nbc_end_to_end),
+    )
+    comparisons = []
+    for family, mode, pflacco_call, bflacco_call in call_sets:
+        verified(pflacco_call, bflacco_call)
+        pflacco_call()
+        bflacco_call()
+        pflacco_timing, bflacco_timing = measure_pair(
+            pflacco_call,
+            bflacco_call,
+            repeats=repeats,
+            calls=calls,
+        )
+        comparisons.append(
+            Comparison(
+                observations,
+                dimension,
+                family,
+                mode,
+                pflacco_timing,
+                bflacco_timing,
+                pflacco_timing.cpu_seconds / bflacco_timing.cpu_seconds,
+                pflacco_timing.wall_seconds / bflacco_timing.wall_seconds,
+            )
+        )
+    return comparisons
+
+
+def print_table(comparisons: list[Comparison]) -> None:
+    header = (
+        "d",
+        "n",
+        "family",
+        "mode",
+        "pflacco CPU s",
+        "bflacco CPU s",
+        "CPU speedup",
+        "pflacco wall s",
+        "bflacco wall s",
+    )
+    print(" | ".join(header))
+    print(" | ".join("---" for _ in header))
+    for item in comparisons:
+        print(
+            " | ".join(
+                (
+                    str(item.dimension),
+                    str(item.observations),
+                    item.family,
+                    item.mode,
+                    f"{item.pflacco.cpu_seconds:.9f}",
+                    f"{item.bflacco.cpu_seconds:.9f}",
+                    f"{item.cpu_speedup:.2f}x",
+                    f"{item.pflacco.wall_seconds:.9f}",
+                    f"{item.bflacco.wall_seconds:.9f}",
+                )
+            )
+        )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--pflacco-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[2] / "pflacco",
+    )
+    parser.add_argument("--sizes", type=int, nargs="+", default=[100, 500, 1_000])
+    parser.add_argument("--dimensions", type=int, nargs="+", default=[2, 5, 10])
+    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--calls", type=int, default=1)
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="maximum threads in supported native numerical libraries",
+    )
+    parser.add_argument("--seed", type=int, default=20260830)
+    parser.add_argument("--json", type=Path)
+    args = parser.parse_args()
+    if any(size < 3 for size in args.sizes):
+        parser.error("sample sizes must be at least 3")
+    if any(dimension < 1 for dimension in args.dimensions):
+        parser.error("dimensions must be positive")
+    if args.repeats < 1 or args.calls < 1 or args.threads < 1:
+        parser.error("repeats, calls, and threads must be positive")
+    return args
+
+
+def main() -> None:
+    args = parse_args()
+    calculate_ic, calculate_nbc, source = load_pflacco_calculators(args.pflacco_root)
+    rng = np.random.Generator(np.random.PCG64(args.seed))
+    comparisons = []
+    with threadpool_limits(limits=args.threads):
+        native_libraries = threadpool_info()
+        for dimension in args.dimensions:
+            for observations in args.sizes:
+                comparisons.extend(
+                    compare_case(
+                        calculate_ic,
+                        calculate_nbc,
+                        observations=observations,
+                        dimension=dimension,
+                        rng=rng,
+                        repeats=args.repeats,
+                        calls=args.calls,
+                    )
+                )
+
+    report = {
+        "scope": {
+            "families": ["ic", "nbc"],
+            "objective": "sphere",
+            "sample_generation_timed": False,
+            "outputs_verified_before_timing": True,
+            "ic_start": "lexicographically_smallest_x",
+            "nbc_distance": "euclidean",
+        },
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "numpy": np.__version__,
+            "scipy": scipy.__version__,
+            "pandas": pd.__version__,
+            "scikit_learn": sklearn.__version__,
+            "bflacco": bflacco.__version__,
+            "pflacco_source": source,
+        },
+        "settings": {
+            "sizes": args.sizes,
+            "dimensions": args.dimensions,
+            "repeats": args.repeats,
+            "calls": args.calls,
+            "threads": args.threads,
+            "seed": args.seed,
+        },
+        "native_libraries": native_libraries,
+        "comparisons": [asdict(item) for item in comparisons],
+    }
+    print("All common IC and NBC outputs verified before timing.\n")
+    print_table(comparisons)
+    if args.json is not None:
+        args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(f"\nWrote {args.json}")
+
+
+if __name__ == "__main__":
+    main()

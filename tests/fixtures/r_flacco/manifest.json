@@ -45,6 +45,21 @@
       ]
     }
   ],
+  "feature_parameters": {
+    "ic": {
+      "epsilon": "0 + logspace(-5, 15, 1000)",
+      "info_sensitivity": 0.5,
+      "nn_neighborhood": 20,
+      "nn_start": "lexicographically_smallest_x",
+      "settling_sensitivity": 0.05,
+      "sorting": "nn"
+    },
+    "nbc": {
+      "distance": "euclidean",
+      "distance_tie_breaker": "first",
+      "fast_k": 0.05
+    }
+  },
   "feature_sets": [
     "ela_distr",
     "ela_meta",

@@ -6,6 +6,7 @@ repository root against the source tree:
 ```bash
 PYTHONPATH=src python benchmarks/benchmark_distribution.py
 PYTHONPATH=src python benchmarks/benchmark_meta_model.py
+uv run --extra benchmark python benchmarks/compare_pflacco_structural.py
 ```
 
 Each benchmark reports dependency versions, selectors, requested intermediates, sample shape,
@@ -39,3 +40,10 @@ The scope is not an identical group comparison yet: pflacco necessarily calculat
 while bflacco currently implements only individually selectable skewness and kurtosis. The report
 records this difference so the resulting speedup is not misrepresented as a same-instruction-kernel
 comparison.
+
+`compare_pflacco_structural.py` compares the complete IC and NBC families across sample sizes
+and dimensions. It pins the otherwise stochastic IC start and tie policies, verifies every
+scientific output before timing, alternates measurement order, and reports median prepared-input
+and end-to-end CPU/wall seconds. Use `--json path/to/report.json` to retain the full environment,
+settings, and measurements with an experiment. Native numerical thread pools default to one thread
+for interpretable process-CPU results; change this explicitly with `--threads`.

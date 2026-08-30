@@ -16,7 +16,9 @@ drop-in replacement for `pflacco`.
 Currently implemented feature slices:
 
 - `ela_distr`: individually selectable type-3 skewness and kurtosis;
-- `ela_meta`: selected linear and corrected quadratic model intercept/fit statistics.
+- `ela_meta`: selected linear and corrected quadratic model intercept/fit statistics;
+- `ic`: all five information-content outputs with a deterministic nearest-neighbour tour;
+- `nbc`: all five nearest-better-clustering outputs with deterministic tie handling.
 
 ## Development order
 
@@ -41,3 +43,6 @@ uv run pre-commit run --all-files
 The hook applies Ruff linting/formatting, runs ty over the library source, validates project and
 data files, and checks common repository hygiene problems. Direct checks are available through
 `uv run ruff check .`, `uv run ruff format --check .`, and `uv run ty check`.
+
+Install `--extra benchmark` to run the reproducible CPU/wall-time comparisons described in
+[benchmarks/README.md](benchmarks/README.md).

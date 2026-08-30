@@ -104,6 +104,29 @@ unimportant in its own area.
 | [Prager and Trautmann, *Pflacco*](https://doi.org/10.1162/evco_a_00341) | *Evolutionary Computation* 2024; Python package/reference implementation | Classical and extended feature implementations for continuous and constrained optimization | A compatibility and reproducibility source, not evidence that its entire catalogue belongs in the default profile. |
 | [Malan and Engelbrecht, *A Survey of Techniques for Characterising Fitness Landscapes*](https://doi.org/10.1016/j.ins.2013.04.015) | *Information Sciences* 2013; broad landscape-analysis survey | Organizes ruggedness, modality, neutrality, evolvability, FDC, autocorrelation, and related measures | Provides an extension taxonomy. Its broader FLA catalogue should not be conflated with the 50 original ELA outputs or modern `pflacco` families. |
 
+The exact historical GECCO 2011 inventory is useful when building a compatibility layer.
+Using the paper's original spelling, its 50 outputs are:
+
+- **Meta-model (7):** `approx.linear_ar2`, `approx.lineari_ar2`,
+  `approx.linear_min_coef`, `approx.linear_max_coef`, `approx.quadratic_ar2`,
+  `approx.quadratici_ar2`, `approx.quadratic_cond`.
+- **Convexity (3):** `convex.linear_p`, `convex.convex_p`, `convex.linear_dev`.
+- **y-distribution (3):** `distr.skewness_y`, `distr.kurtosis_y`, `distr.n_peaks`.
+- **Level set (12):** `levelset.lda_mmce_q`, `levelset.lda_vs_qda_q`,
+  `levelset.qda_mmce_q`, and `levelset.mda_mmce_q` for each
+  `q` in `{10, 25, 50}`.
+- **Local search (10):** `ls.n_local_optima`, `ls.best_to_mean_contrast`,
+  `ls.best_basin_size`, `ls.worst_basin_size`, `ls.mean_other_basin_size`, and
+  `ls.{min,lq,med,uq,max}_feval`.
+- **Curvature (15):** `numderiv.grad_norm_{min,lq,med,uq,max}`,
+  `numderiv.grad_scale_{min,lq,med,uq,max}`, and
+  `numderiv.hessian_cond_{min,lq,med,uq,max}`.
+
+These are historical identifiers, not the recommended public names. Modern `flacco` and
+`pflacco` changed and expanded parts of the meta-model and level-set surfaces. A replacement
+should map old names to a documented mathematical specification rather than promise that
+similar-looking old and new names are automatically identical.
+
 ### Benchmark analysis, classification, and robustness
 
 | Paper | Venue / task | Features used | Main observation for `bflacco` |
@@ -476,6 +499,9 @@ The current roadmap is well aligned with the literature. A sharper order is:
    fits are represented.
 7. Re-evaluate `limo` and expensive/cell-based families only after usage telemetry or a
    concrete compatibility requirement justifies them.
+8. Keep learned point-cloud representations and MO-ELA behind separate interfaces. For
+   MO-ELA, first stabilize the preprint's PCA count and degeneracy conventions; for learned
+   representations, version model weights and preprocessing together.
 
 ## Bottom line
 

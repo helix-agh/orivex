@@ -6,6 +6,21 @@
   "r_version": "4.3.1",
   "flacco_version": "1.8",
   "feature_sets": ["ela_distr", "ela_meta", "disp", "nbc", "ic", "pca"],
+  "feature_parameters": {
+    "ic": {
+      "epsilon": "0 + logspace(-5, 15, 1000)",
+      "info_sensitivity": 0.5,
+      "nn_neighborhood": 20,
+      "nn_start": "lexicographically_smallest_x",
+      "settling_sensitivity": 0.050000000000000003,
+      "sorting": "nn"
+    },
+    "nbc": {
+      "distance": "euclidean",
+      "distance_tie_breaker": "first",
+      "fast_k": 0.050000000000000003
+    }
+  },
   "values": {
     "ela_distr.skewness": 0.48378755261223555,
     "ela_distr.kurtosis": -0.66779709571183243,
@@ -40,11 +55,11 @@
     "nbc.nn_nb.cor": 0.63763866977090033,
     "nbc.dist_ratio.coeff_var": 0.32687961245374553,
     "nbc.nb_fitness.cor": -0.318903732332662,
-    "ic.h.max": 0.73546889355596767,
-    "ic.eps.s": 1.0260260260260257,
-    "ic.eps.max": 1.5317404637020797,
-    "ic.eps.ratio": 0.48548548548548531,
-    "ic.m0": 0.46825396825396826,
+    "ic.h.max": 0.73085257825699301,
+    "ic.eps.s": 1.0060060060060056,
+    "ic.eps.max": 1.6796748720926531,
+    "ic.eps.ratio": 0.66566566566566543,
+    "ic.m0": 0.40476190476190477,
     "pca.expl_var.cov_x": 1,
     "pca.expl_var.cor_x": 1,
     "pca.expl_var.cov_init": 0.66666666666666663,

@@ -7,15 +7,25 @@ import numpy as np
 from .engine import Engine
 from .features.distribution import FEATURES as DISTRIBUTION_FEATURES
 from .features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
+from .features.information_content import FEATURES as INFORMATION_CONTENT_FEATURES
+from .features.information_content import INTERMEDIATES as INFORMATION_CONTENT_INTERMEDIATES
 from .features.meta_model import FEATURES as META_MODEL_FEATURES
 from .features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
+from .features.nearest_better import FEATURES as NEAREST_BETTER_FEATURES
+from .features.nearest_better import INTERMEDIATES as NEAREST_BETTER_INTERMEDIATES
 from .result import ComputationResult
 from .sample import LandscapeSample
 from .specs import FeatureSpec
 
 DEFAULT_ENGINE = Engine(
-    DISTRIBUTION_FEATURES + META_MODEL_FEATURES,
-    DISTRIBUTION_INTERMEDIATES + META_MODEL_INTERMEDIATES,
+    DISTRIBUTION_FEATURES
+    + META_MODEL_FEATURES
+    + INFORMATION_CONTENT_FEATURES
+    + NEAREST_BETTER_FEATURES,
+    DISTRIBUTION_INTERMEDIATES
+    + META_MODEL_INTERMEDIATES
+    + INFORMATION_CONTENT_INTERMEDIATES
+    + NEAREST_BETTER_INTERMEDIATES,
 )
 
 

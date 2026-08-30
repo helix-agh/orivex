@@ -20,11 +20,11 @@
 
 Implement and validate candidate zero-additional-evaluation features:
 
-- distribution skewness and kurtosis;
-- selected linear and quadratic meta-model fit statistics;
-- nearest-better clustering;
+- [x] distribution skewness and kurtosis;
+- [x] selected linear and quadratic meta-model fit statistics;
+- [x] nearest-better clustering;
+- [x] information content;
 - dispersion ratios;
-- information content;
 - fitness-distance correlation.
 
 PCA, level-set, cell-mapping, and additional-evaluation features remain compatibility or

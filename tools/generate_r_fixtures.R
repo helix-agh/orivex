@@ -40,7 +40,29 @@ for (case in manifest$cases) {
 
   values <- list()
   for (feature_set in feature_sets) {
-    calculated <- flacco::calculateFeatureSet(feature_object, set = feature_set)
+    control <- list()
+    if (feature_set == "ic") {
+      lexicographic_start <- do.call(order, input[x_columns])[[1]]
+      control <- list(
+        ic.sorting = "nn",
+        ic.nn.neighborhood = 20L,
+        ic.nn.start = lexicographic_start,
+        ic.seed = as.integer(case$seed),
+        ic.settling_sensitivity = 0.05,
+        ic.info_sensitivity = 0.5
+      )
+    } else if (feature_set == "nbc") {
+      control <- list(
+        nbc.dist_method = "euclidean",
+        nbc.fast_k = 0.05,
+        nbc.dist_tie_breaker = "first"
+      )
+    }
+    calculated <- flacco::calculateFeatureSet(
+      feature_object,
+      set = feature_set,
+      control = control
+    )
     calculated[[paste0(feature_set, ".costs_runtime")]] <- NULL
     calculated[[paste0(feature_set, ".costs_fun_evals")]] <- NULL
     values <- c(values, calculated)
@@ -60,6 +82,7 @@ for (case in manifest$cases) {
     r_version = paste(R.version$major, R.version$minor, sep = "."),
     flacco_version = as.character(utils::packageVersion("flacco")),
     feature_sets = feature_sets,
+    feature_parameters = manifest$feature_parameters,
     values = values
   )
   output_path <- file.path(output_root, paste0(case$name, ".json"))
