@@ -1,9 +1,10 @@
-"""Compare pflacco and bflacco IC/NBC CPU and wall time.
+"""Compare pflacco and bflacco CPU and wall time for every implemented family.
 
-Both implementations receive the same sphere samples. IC uses the same explicit
-lexicographic starting observation, epsilon grid, and nearest-neighbour sorting policy.
-NBC uses Euclidean distances and deterministic first-index tie handling. Numerical outputs
-are verified before any timing result is accepted.
+Both implementations receive the same sphere samples. The comparison covers the common
+implemented outputs from ``ela_distr``, ``ela_meta``, ``ic``, and ``nbc``. IC uses the same
+explicit lexicographic starting observation, epsilon grid, and nearest-neighbour sorting policy.
+NBC uses Euclidean distances and deterministic first-index tie handling. Numerical outputs are
+verified before any timing result is accepted.
 """
 
 from __future__ import annotations
@@ -84,7 +85,9 @@ def measure_pair(
     return median(samples["pflacco"]), median(samples["bflacco"])
 
 
-def load_pflacco_calculators(pflacco_root: Path) -> tuple[Callable, Callable, str]:
+def load_pflacco_calculators(
+    pflacco_root: Path,
+) -> tuple[Callable, Callable, Callable, Callable, str]:
     resolved = pflacco_root.resolve()
     source_file = resolved / "pflacco" / "classical_ela_features.py"
     if not source_file.is_file():
@@ -98,6 +101,8 @@ def load_pflacco_calculators(pflacco_root: Path) -> tuple[Callable, Callable, st
     if module_file is None:
         raise RuntimeError("the loaded pflacco module has no source path")
     return (
+        module.calculate_ela_distribution,
+        module.calculate_ela_meta,
         module.calculate_information_content,
         module.calculate_nbc,
         str(Path(module_file).resolve()),
@@ -135,6 +140,8 @@ def verified(
 
 
 def compare_case(
+    calculate_distribution: Callable,
+    calculate_meta: Callable,
     calculate_ic: Callable,
     calculate_nbc: Callable,
     *,
@@ -152,6 +159,30 @@ def compare_case(
     series = pd.Series(y, name="y")
     sample = LandscapeSample(x, y, lower, upper)
     start = lexicographic_start(x)
+
+    def pflacco_distribution_prepared() -> dict[str, object]:
+        return calculate_distribution(frame, series)
+
+    def pflacco_distribution_end_to_end() -> dict[str, object]:
+        return calculate_distribution(x, y)
+
+    def bflacco_distribution_prepared():
+        return compute(sample, "ela_distr.*")
+
+    def bflacco_distribution_end_to_end():
+        return compute(LandscapeSample(x, y, lower, upper), "ela_distr.*")
+
+    def pflacco_meta_prepared() -> dict[str, object]:
+        return calculate_meta(frame, series)
+
+    def pflacco_meta_end_to_end() -> dict[str, object]:
+        return calculate_meta(x, y)
+
+    def bflacco_meta_prepared():
+        return compute(sample, "ela_meta.*")
+
+    def bflacco_meta_end_to_end():
+        return compute(LandscapeSample(x, y, lower, upper), "ela_meta.*")
 
     def pflacco_ic_prepared() -> dict[str, object]:
         return calculate_ic(frame, series, ic_nn_start=start, seed=20260830)
@@ -178,6 +209,20 @@ def compare_case(
         return compute(LandscapeSample(x, y, lower, upper), "nbc.*")
 
     call_sets = (
+        (
+            "ela_distr",
+            "prepared",
+            pflacco_distribution_prepared,
+            bflacco_distribution_prepared,
+        ),
+        (
+            "ela_distr",
+            "end_to_end",
+            pflacco_distribution_end_to_end,
+            bflacco_distribution_end_to_end,
+        ),
+        ("ela_meta", "prepared", pflacco_meta_prepared, bflacco_meta_prepared),
+        ("ela_meta", "end_to_end", pflacco_meta_end_to_end, bflacco_meta_end_to_end),
         ("ic", "prepared", pflacco_ic_prepared, bflacco_ic_prepared),
         ("ic", "end_to_end", pflacco_ic_end_to_end, bflacco_ic_end_to_end),
         ("nbc", "prepared", pflacco_nbc_prepared, bflacco_nbc_prepared),
@@ -272,7 +317,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    calculate_ic, calculate_nbc, source = load_pflacco_calculators(args.pflacco_root)
+    (
+        calculate_distribution,
+        calculate_meta,
+        calculate_ic,
+        calculate_nbc,
+        source,
+    ) = load_pflacco_calculators(args.pflacco_root)
     rng = np.random.Generator(np.random.PCG64(args.seed))
     comparisons = []
     with threadpool_limits(limits=args.threads):
@@ -281,6 +332,8 @@ def main() -> None:
             for observations in args.sizes:
                 comparisons.extend(
                     compare_case(
+                        calculate_distribution,
+                        calculate_meta,
                         calculate_ic,
                         calculate_nbc,
                         observations=observations,
@@ -293,7 +346,24 @@ def main() -> None:
 
     report = {
         "scope": {
-            "families": ["ic", "nbc"],
+            "families": ["ela_distr", "ela_meta", "ic", "nbc"],
+            "bflacco_outputs": {
+                "ela_distr": 2,
+                "ela_meta": 5,
+                "ic": 5,
+                "nbc": 5,
+            },
+            "pflacco_additional_outputs": {
+                "ela_distr": ["ela_distr.number_of_peaks"],
+                "ela_meta": [
+                    "ela_meta.lin_simple.coef.min",
+                    "ela_meta.lin_simple.coef.max",
+                    "ela_meta.lin_simple.coef.max_by_min",
+                    "ela_meta.quad_simple.cond",
+                ],
+                "ic": [],
+                "nbc": [],
+            },
             "objective": "sphere",
             "sample_generation_timed": False,
             "outputs_verified_before_timing": True,
@@ -322,7 +392,8 @@ def main() -> None:
         "native_libraries": native_libraries,
         "comparisons": [asdict(item) for item in comparisons],
     }
-    print("All common IC and NBC outputs verified before timing.\n")
+    print("All 17 implemented outputs verified against pflacco before timing.")
+    print("pflacco also computes 1 distribution and 4 meta-model legacy outputs.\n")
     print_table(comparisons)
     if args.json is not None:
         args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
