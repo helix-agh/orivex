@@ -1,0 +1,59 @@
+{
+  "cases": [
+    {
+      "blocks": [
+        3,
+        3
+      ],
+      "file": "inputs/sphere_d2.csv",
+      "lower": [
+        -5.0,
+        -5.0
+      ],
+      "name": "sphere_d2",
+      "seed": 20260830,
+      "sha256": "1588384d83823718437ce8372311a022cf6efc3954bd4b3d3de98590e8d868a6",
+      "upper": [
+        5.0,
+        5.0
+      ],
+      "x_columns": [
+        "x0",
+        "x1"
+      ]
+    },
+    {
+      "blocks": [
+        3,
+        3
+      ],
+      "file": "inputs/linear_d2.csv",
+      "lower": [
+        -5.0,
+        -5.0
+      ],
+      "name": "linear_d2",
+      "seed": 20260830,
+      "sha256": "b4e2154b4d0fa129e28856e30d1c8f0d16a0fece4364698d25f784653e487b8a",
+      "upper": [
+        5.0,
+        5.0
+      ],
+      "x_columns": [
+        "x0",
+        "x1"
+      ]
+    }
+  ],
+  "feature_sets": [
+    "ela_distr",
+    "ela_meta",
+    "disp",
+    "nbc",
+    "ic",
+    "pca"
+  ],
+  "generator": "numpy.random.PCG64",
+  "generator_seed": 20260830,
+  "schema_version": 1
+}

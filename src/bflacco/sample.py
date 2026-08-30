@@ -1,0 +1,104 @@
+"""Validated, immutable landscape observations."""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from enum import Enum
+
+import numpy as np
+import numpy.typing as npt
+
+FloatArray = npt.NDArray[np.float64]
+
+
+class ObjectiveSense(str, Enum):
+    MINIMIZE = "minimize"
+    MAXIMIZE = "maximize"
+
+
+def _readonly_float_array(value: npt.ArrayLike, *, dimensions: int, name: str) -> FloatArray:
+    array = np.array(value, dtype=np.float64, order="C", copy=True)
+    if array.ndim != dimensions:
+        raise ValueError(f"{name} must be {dimensions}-dimensional, got shape {array.shape}")
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must contain only finite values")
+    array.flags.writeable = False
+    return array
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class LandscapeSample:
+    """Paired decision and objective observations with explicit box bounds."""
+
+    x: FloatArray
+    y: FloatArray
+    lower: FloatArray
+    upper: FloatArray
+    sense: ObjectiveSense
+    _minimization_y: FloatArray
+    _fingerprint: str
+
+    def __init__(
+        self,
+        x: npt.ArrayLike,
+        y: npt.ArrayLike,
+        lower: npt.ArrayLike,
+        upper: npt.ArrayLike,
+        sense: ObjectiveSense | str = ObjectiveSense.MINIMIZE,
+    ) -> None:
+        x_array = _readonly_float_array(x, dimensions=2, name="X")
+        y_array = _readonly_float_array(y, dimensions=1, name="y")
+        lower_array = _readonly_float_array(lower, dimensions=1, name="lower")
+        upper_array = _readonly_float_array(upper, dimensions=1, name="upper")
+        sense_value = ObjectiveSense(sense)
+
+        observations, dimension = x_array.shape
+        if observations == 0 or dimension == 0:
+            raise ValueError("X must contain at least one observation and one variable")
+        if y_array.shape != (observations,):
+            raise ValueError(f"y must have shape ({observations},), got {y_array.shape}")
+        if lower_array.shape != (dimension,) or upper_array.shape != (dimension,):
+            raise ValueError(f"bounds must both have shape ({dimension},)")
+        if not np.all(lower_array < upper_array):
+            raise ValueError("every lower bound must be strictly smaller than its upper bound")
+        if np.any(x_array < lower_array) or np.any(x_array > upper_array):
+            raise ValueError("all observations must lie within the inclusive box bounds")
+
+        object.__setattr__(self, "x", x_array)
+        object.__setattr__(self, "y", y_array)
+        object.__setattr__(self, "lower", lower_array)
+        object.__setattr__(self, "upper", upper_array)
+        object.__setattr__(self, "sense", sense_value)
+
+        minimization_y = y_array if sense_value is ObjectiveSense.MINIMIZE else -y_array
+        minimization_y.flags.writeable = False
+        object.__setattr__(self, "_minimization_y", minimization_y)
+
+        digest = hashlib.sha256()
+        for array in (x_array, y_array, lower_array, upper_array):
+            digest.update(str(array.shape).encode("ascii"))
+            digest.update(array.dtype.str.encode("ascii"))
+            digest.update(array.tobytes(order="C"))
+        digest.update(sense_value.value.encode("ascii"))
+        object.__setattr__(self, "_fingerprint", digest.hexdigest())
+
+    @property
+    def n_observations(self) -> int:
+        return self.x.shape[0]
+
+    @property
+    def dimension(self) -> int:
+        return self.x.shape[1]
+
+    @property
+    def minimization_y(self) -> FloatArray:
+        """Objective observations transformed to minimization convention."""
+
+        return self._minimization_y
+
+    @property
+    def fingerprint(self) -> str:
+        """Stable checksum of numerical inputs and objective sense."""
+
+        return self._fingerprint
