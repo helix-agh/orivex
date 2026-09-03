@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from .transforms import (
+from verification.transforms import (
     orthogonally_rotate_x,
     paired_row_permutation,
     positively_scale_y,

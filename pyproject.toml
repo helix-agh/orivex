@@ -14,6 +14,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+torch = [
+    "torch>=2.3",
+]
 test = [
     "hypothesis>=6.100",
     "pytest>=8",
@@ -39,7 +42,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 
 [tool.ruff]
@@ -54,6 +57,7 @@ known-first-party = ["bflacco"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG"]
+"tests/torch/**" = ["E402"]
 
 [tool.ty.environment]
 python-version = "3.10"

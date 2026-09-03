@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatchcase
 
-from .specs import FeatureSpec
+from bflacco.specs import FeatureSpec
 
 
 class RegistryError(ValueError):

@@ -1,10 +1,15 @@
+from typing import cast
+
 import pytest
 
 from bflacco.result import (
+    BackendName,
     ComputationResult,
+    DeviceType,
     ExecutionMetadata,
     FeatureStatus,
     FeatureValue,
+    FloatingDType,
 )
 
 
@@ -27,3 +32,18 @@ def test_metadata_rejects_negative_costs() -> None:
         ExecutionMetadata("abc", (), (), -1.0, 0)
     with pytest.raises(ValueError, match="objective evaluations"):
         ExecutionMetadata("abc", (), (), 0.0, -1)
+
+
+@pytest.mark.parametrize("workers", [0, -2])
+def test_metadata_rejects_invalid_workers(workers: int) -> None:
+    with pytest.raises(ValueError, match="workers"):
+        ExecutionMetadata("abc", (), (), 0.0, 0, workers=workers)
+
+
+def test_metadata_rejects_values_outside_literal_domains() -> None:
+    with pytest.raises(ValueError, match="backend"):
+        ExecutionMetadata("abc", (), (), 0.0, 0, backend=cast(BackendName, "jax"))
+    with pytest.raises(ValueError, match="device"):
+        ExecutionMetadata("abc", (), (), 0.0, 0, device=cast(DeviceType, "tpu"))
+    with pytest.raises(ValueError, match="dtype"):
+        ExecutionMetadata("abc", (), (), 0.0, 0, dtype=cast(FloatingDType, "float16"))

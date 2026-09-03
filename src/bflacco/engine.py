@@ -9,11 +9,11 @@ from types import MappingProxyType
 
 import numpy as np
 
-from .planner import IntermediateSpec, Planner
-from .registry import FeatureRegistry
-from .result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
-from .sample import LandscapeSample
-from .specs import FeatureSpec, InputRequirement
+from bflacco.planner import IntermediateSpec, Planner
+from bflacco.registry import FeatureRegistry
+from bflacco.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
+from bflacco.sample import LandscapeSample
+from bflacco.specs import FeatureSpec, InputRequirement
 
 IntermediateValue = object
 
@@ -27,6 +27,7 @@ class ComputationContext:
     sample: LandscapeSample
     intermediates: Mapping[str, IntermediateValue]
     rng: np.random.Generator | None
+    workers: int = 1
 
     def intermediate(self, name: str) -> IntermediateValue:
         try:
@@ -83,7 +84,10 @@ class Engine:
         features: str | tuple[str, ...] | list[str],
         *,
         rng: np.random.Generator | None = None,
+        workers: int = 1,
     ) -> ComputationResult:
+        if workers == 0 or workers < -1:
+            raise ValueError("workers must be -1 or a positive integer")
         started = time.perf_counter()
         plan = self.planner.plan(features)
         if InputRequirement.RNG in plan.requirements and rng is None:
@@ -91,12 +95,12 @@ class Engine:
 
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
-            context = ComputationContext(sample, MappingProxyType(cache), rng)
+            context = ComputationContext(sample, MappingProxyType(cache), rng, workers)
             cache[intermediate.name] = self._intermediate_definitions[intermediate.name].calculate(
                 context
             )
 
-        context = ComputationContext(sample, MappingProxyType(cache), rng)
+        context = ComputationContext(sample, MappingProxyType(cache), rng, workers)
         values: dict[str, FeatureValue] = {}
         for spec in plan.features:
             definition = self._feature_definitions[spec.name]
@@ -123,5 +127,6 @@ class Engine:
             computed_intermediates=plan.intermediate_names,
             runtime_seconds=time.perf_counter() - started,
             additional_objective_evaluations=0,
+            workers=workers,
         )
         return ComputationResult(values, metadata)

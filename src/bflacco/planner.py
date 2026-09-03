@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .registry import FeatureRegistry
-from .specs import FeatureSpec, InputRequirement
+from bflacco.registry import FeatureRegistry
+from bflacco.specs import FeatureSpec, InputRequirement
 
 _INTERMEDIATE_ID = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$")
 

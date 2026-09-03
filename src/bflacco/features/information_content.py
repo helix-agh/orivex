@@ -7,15 +7,15 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import KDTree
 
-from ..engine import (
+from bflacco.engine import (
     ComputationContext,
     FeatureCalculator,
     FeatureDefinition,
     FeatureUnavailable,
     IntermediateDefinition,
 )
-from ..planner import IntermediateSpec
-from ..specs import (
+from bflacco.planner import IntermediateSpec
+from bflacco.specs import (
     CostModel,
     CostTier,
     FeatureSpec,
@@ -50,8 +50,17 @@ class SlopeSequence:
 
 
 @dataclass(frozen=True, slots=True)
-class SymbolMatrix:
-    values: np.ndarray
+class SymbolSchedule:
+    """Compact description of how tour symbols change along the epsilon grid.
+
+    Each slope switches to the zero symbol exactly once as epsilon grows, so the dense
+    grid-by-slope matrix it used to be is fully described by the epsilon-zero sign of every
+    slope and the first grid index at which that slope reads as zero.
+    """
+
+    signs: np.ndarray
+    thresholds: np.ndarray
+    count: int
     message: str | None = None
 
 
@@ -73,33 +82,42 @@ def _aggregate_duplicate_points(context: ComputationContext) -> tuple[np.ndarray
     return x, y_sums / counts
 
 
+def _closest(x: np.ndarray, candidates: np.ndarray, current: int) -> tuple[int, float]:
+    """Lowest-index closest candidate under exactly recomputed Euclidean distances."""
+
+    deltas = x[candidates] - x[current]
+    exact = np.sqrt(np.einsum("ij,ij->i", deltas, deltas))
+    minimum = np.min(exact)
+    return int(np.min(candidates[exact == minimum])), float(minimum)
+
+
 def _nearest_unvisited(
     x: np.ndarray,
     tree: KDTree,
     neighbour_distances: np.ndarray,
     neighbour_indices: np.ndarray,
+    covered_radius: np.ndarray,
     current: int,
     visited: np.ndarray,
 ) -> tuple[int, float]:
     candidates = neighbour_indices[current]
-    available = candidates[~visited[candidates]]
-    if available.size:
-        candidate_distances = neighbour_distances[current][~visited[candidates]]
-        distance = float(np.min(candidate_distances))
-        tied = tree.query_ball_point(x[current], np.nextafter(distance, np.inf))
-        tied = np.asarray(tied, dtype=np.int64)
+    unvisited = ~visited[candidates]
+    if unvisited.any():
+        candidate_distances = neighbour_distances[current][unvisited]
+        available = candidates[unvisited]
+        distance = np.min(candidate_distances)
+        radius = np.nextafter(float(distance), np.inf)
+        if radius < covered_radius[current]:
+            # Every point inside this radius is closer than the furthest stored neighbour and
+            # therefore already listed, so the stored candidates are the complete tie set and
+            # the range query below cannot add to it.
+            return _closest(x, available[candidate_distances <= radius], current)
+        tied = np.asarray(tree.query_ball_point(x[current], radius), dtype=np.int64)
         tied = tied[~visited[tied]]
         if tied.size:
-            deltas = x[tied] - x[current]
-            exact = np.sqrt(np.einsum("ij,ij->i", deltas, deltas))
-            minimum = np.min(exact)
-            return int(np.min(tied[exact == minimum])), float(minimum)
+            return _closest(x, tied, current)
 
-    available = np.flatnonzero(~visited)
-    deltas = x[available] - x[current]
-    exact = np.sqrt(np.einsum("ij,ij->i", deltas, deltas))
-    minimum = np.min(exact)
-    return int(np.min(available[exact == minimum])), float(minimum)
+    return _closest(x, np.flatnonzero(~visited), current)
 
 
 def slope_sequence(context: ComputationContext) -> SlopeSequence:
@@ -112,10 +130,11 @@ def slope_sequence(context: ComputationContext) -> SlopeSequence:
 
     tree = KDTree(x)
     k = min(NEIGHBOURHOOD, x.shape[0])
-    neighbour_distances, neighbour_indices = tree.query(x, k=k)
+    neighbour_distances, neighbour_indices = tree.query(x, k=k, workers=context.workers)
     if k == 1:
         neighbour_distances = neighbour_distances[:, None]
         neighbour_indices = neighbour_indices[:, None]
+    covered_radius = neighbour_distances[:, -1]
 
     permutation = np.empty(x.shape[0], dtype=np.int64)
     distances = np.empty(x.shape[0] - 1, dtype=np.float64)
@@ -129,6 +148,7 @@ def slope_sequence(context: ComputationContext) -> SlopeSequence:
             tree,
             neighbour_distances,
             neighbour_indices,
+            covered_radius,
             current,
             visited,
         )
@@ -148,38 +168,74 @@ def _slopes(context: ComputationContext) -> SlopeSequence:
     return value
 
 
-def symbol_matrix(context: ComputationContext) -> SymbolMatrix:
+def symbol_schedule(context: ComputationContext) -> SymbolSchedule:
     sequence = _slopes(context)
     if sequence.message is not None:
-        return SymbolMatrix(np.empty((0, 0), dtype=np.int8), sequence.message)
+        return SymbolSchedule(
+            np.empty(0, dtype=np.int8),
+            np.empty(0, dtype=np.int64),
+            0,
+            sequence.message,
+        )
     signs = np.sign(sequence.values).astype(np.int8)
-    symbols = np.where(
-        np.abs(sequence.values)[None, :] < EPSILON[:, None],
-        np.int8(0),
-        signs[None, :],
-    )
-    symbols.flags.writeable = False
-    return SymbolMatrix(symbols)
+    # A slope reads as zero from the first grid epsilon that strictly exceeds its magnitude.
+    thresholds = np.searchsorted(EPSILON, np.abs(sequence.values), side="right")
+    thresholds = thresholds.astype(np.int64)
+    signs.flags.writeable = False
+    thresholds.flags.writeable = False
+    return SymbolSchedule(signs, thresholds, sequence.values.size)
 
 
-def _symbols(context: ComputationContext) -> SymbolMatrix:
+def _schedule(context: ComputationContext) -> SymbolSchedule:
     value = context.intermediate("ic.symbols")
-    if not isinstance(value, SymbolMatrix):
+    if not isinstance(value, SymbolSchedule):
         raise TypeError("ic.symbols has an invalid runtime type")
     return value
 
 
 def entropy_curve(context: ComputationContext) -> Curve:
-    symbols = _symbols(context)
-    if symbols.message is not None:
-        return Curve(np.empty(0, dtype=np.float64), symbols.message)
-    left = symbols.values[:, :-1]
-    right = symbols.values[:, 1:]
-    codes = (left + 1) * 3 + (right + 1)
-    probabilities = np.stack(
-        [np.mean(codes == code, axis=1) for code in (1, 2, 3, 5, 6, 7)],
-        axis=1,
+    schedule = _schedule(context)
+    if schedule.message is not None:
+        return Curve(np.empty(0, dtype=np.float64), schedule.message)
+
+    grid = EPSILON.size
+    pairs = schedule.count - 1
+    left = schedule.signs[:-1].astype(np.int64)
+    right = schedule.signs[1:].astype(np.int64)
+    left_threshold = schedule.thresholds[:-1]
+    right_threshold = schedule.thresholds[1:]
+
+    # A consecutive pair passes through at most three codes: both symbols intact, then the
+    # smaller-magnitude slope zeroed, then both zeroed. Recording those two transitions is
+    # enough to reconstruct every code count on the grid by a cumulative sum.
+    initial = (left + 1) * 3 + (right + 1)
+    middle = np.where(left_threshold <= right_threshold, 3 + (right + 1), (left + 1) * 3 + 1)
+    first = np.minimum(np.minimum(left_threshold, right_threshold), grid)
+    second = np.minimum(np.maximum(left_threshold, right_threshold), grid)
+
+    # Transitions landing on the sink row `grid` never take effect inside the grid.
+    positions = np.concatenate(
+        (
+            initial,
+            first * 9 + initial,
+            first * 9 + middle,
+            second * 9 + middle,
+            second * 9 + 4,
+        )
     )
+    weights = np.concatenate(
+        (
+            np.ones(pairs, dtype=np.int64),
+            np.full(pairs, -1, dtype=np.int64),
+            np.ones(pairs, dtype=np.int64),
+            np.full(pairs, -1, dtype=np.int64),
+            np.ones(pairs, dtype=np.int64),
+        )
+    )
+    deltas = np.bincount(positions, weights=weights, minlength=(grid + 1) * 9)
+    counts = np.cumsum(deltas[: grid * 9].reshape(grid, 9), axis=0)
+
+    probabilities = counts[:, [1, 2, 3, 5, 6, 7]] / pairs
     terms = np.zeros_like(probabilities)
     positive = probabilities > 0.0
     terms[positive] = probabilities[positive] * np.log(probabilities[positive]) / np.log(6.0)
@@ -189,15 +245,48 @@ def entropy_curve(context: ComputationContext) -> Curve:
 
 
 def partial_information_curve(context: ComputationContext) -> Curve:
-    symbols = _symbols(context)
-    if symbols.message is not None:
-        return Curve(np.empty(0, dtype=np.float64), symbols.message)
-    denominator = symbols.values.shape[1] - 1
-    values = np.empty(EPSILON.size, dtype=np.float64)
-    for index, row in enumerate(symbols.values):
-        nonzero = row[row != 0]
-        changes = np.count_nonzero(np.diff(nonzero) != 0) if nonzero.size > 1 else 0
-        values[index] = changes / denominator
+    schedule = _schedule(context)
+    if schedule.message is not None:
+        return Curve(np.empty(0, dtype=np.float64), schedule.message)
+
+    grid = EPSILON.size
+    denominator = schedule.count - 1
+    alive = np.flatnonzero(schedule.signs != 0)
+
+    # Symbol changes are counted over the non-zero subsequence, so growing epsilon deletes
+    # entries from a linked list and each deletion adjusts the count by a local amount.
+    signs = schedule.signs[alive].tolist()
+    deaths = schedule.thresholds[alive].tolist()
+    size = len(alive)
+    changes = int(np.count_nonzero(np.diff(schedule.signs[alive]) != 0)) if size > 1 else 0
+    previous = list(range(-1, size - 1))
+    following = list(range(1, size + 1))
+    if size:
+        following[-1] = -1
+
+    deltas = np.zeros(grid, dtype=np.int64)
+    for node in sorted(range(size), key=deaths.__getitem__):
+        death = deaths[node]
+        if death >= grid:
+            break
+        before, after = previous[node], following[node]
+        symbol = signs[node]
+        if before >= 0 and after >= 0:
+            deltas[death] += (
+                (signs[before] != signs[after])
+                - (signs[before] != symbol)
+                - (symbol != signs[after])
+            )
+        elif before >= 0:
+            deltas[death] -= signs[before] != symbol
+        elif after >= 0:
+            deltas[death] -= symbol != signs[after]
+        if before >= 0:
+            following[before] = after
+        if after >= 0:
+            previous[after] = before
+
+    values = (changes + np.cumsum(deltas)) / denominator
     values.flags.writeable = False
     return Curve(values)
 
@@ -257,7 +346,7 @@ INTERMEDIATES = (
     ),
     IntermediateDefinition(
         IntermediateSpec("ic.symbols", ("ic.slopes",), frozenset()),
-        symbol_matrix,
+        symbol_schedule,
     ),
     IntermediateDefinition(
         IntermediateSpec("ic.entropy", ("ic.symbols",), frozenset()),
@@ -305,7 +394,11 @@ def _feature(
             kind=MetricKind.LANDSCAPE,
             requirements=frozenset({InputRequirement.X, InputRequirement.Y}),
             intermediates=(intermediate,),
-            cost=CostModel(CostTier.SAMPLE_ONLY, cpu="O(n^2 d + en)", memory="O(en)"),
+            cost=CostModel(
+                CostTier.SAMPLE_ONLY,
+                cpu="expected O(n log n + e); worst O(n^2 d)",
+                memory="O(nd + kn + e), with k=20",
+            ),
             deterministic=True,
             invariances=COMMON_INVARIANCES,
             references=(REFERENCE, R_REFERENCE),
@@ -315,6 +408,10 @@ def _feature(
                 "Uses a lexicographically anchored nearest-neighbour tour over "
                 "duplicate-aggregated X.",
                 "Uses the fixed flacco epsilon grid with e=1001.",
+                "Epsilon-indexed curves are accumulated from per-slope threshold events, so "
+                "the grid-by-slope symbol matrix is never materialised.",
+                "Nearest-neighbour construction respects the explicit compute workers setting; "
+                "the default is one worker.",
             ),
         ),
         calculator,

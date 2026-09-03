@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
 
 FloatArray = npt.NDArray[np.float64]
+ObjectiveSenseName: TypeAlias = Literal["minimize", "maximize"]
 
 
 class ObjectiveSense(str, Enum):
@@ -45,7 +47,7 @@ class LandscapeSample:
         y: npt.ArrayLike,
         lower: npt.ArrayLike,
         upper: npt.ArrayLike,
-        sense: ObjectiveSense | str = ObjectiveSense.MINIMIZE,
+        sense: ObjectiveSense | ObjectiveSenseName = ObjectiveSense.MINIMIZE,
     ) -> None:
         x_array = _readonly_float_array(x, dimensions=2, name="X")
         y_array = _readonly_float_array(y, dimensions=1, name="y")

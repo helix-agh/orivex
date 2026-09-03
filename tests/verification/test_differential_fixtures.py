@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from .differential import load_differential_fixture, sha256_file
+from verification.differential import load_differential_fixture, sha256_file
 
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "r_flacco"
 

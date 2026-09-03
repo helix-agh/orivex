@@ -4,9 +4,19 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.spatial import KDTree
 
 from bflacco import LandscapeSample, compute, list_features
-from bflacco.features.information_content import EPSILON
+from bflacco.engine import ComputationContext
+from bflacco.features.information_content import (
+    EPSILON,
+    NEIGHBOURHOOD,
+    SlopeSequence,
+    entropy_curve,
+    partial_information_curve,
+    slope_sequence,
+    symbol_schedule,
+)
 from bflacco.result import FeatureStatus
 
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "r_flacco"
@@ -66,6 +76,29 @@ def test_individual_information_selection_avoids_unneeded_curve() -> None:
         "ic.symbols",
         "ic.entropy",
     )
+
+
+def test_information_content_worker_policy_is_explicit_and_output_invariant() -> None:
+    rng = np.random.Generator(np.random.PCG64(72))
+    x = rng.uniform(-4.0, 4.0, size=(100, 3))
+    y = np.sin(x[:, 0]) + x[:, 1] ** 2 - x[:, 2]
+    sample = sample_for(x, y)
+
+    single = compute(sample, "ic.*")
+    parallel = compute(sample, "ic.*", workers=-1)
+
+    assert single.metadata.workers == 1
+    assert parallel.metadata.workers == -1
+    assert numeric_values(parallel) == numeric_values(single)
+
+
+@pytest.mark.parametrize("workers", [0, -2])
+def test_invalid_worker_policy_is_rejected(workers: int) -> None:
+    x = np.arange(5.0).reshape(-1, 1)
+    sample = sample_for(x, x[:, 0] ** 2)
+
+    with pytest.raises(ValueError, match="workers"):
+        compute(sample, "ic.*", workers=workers)
 
 
 def test_duplicate_points_are_aggregated_by_mean_objective() -> None:
@@ -131,3 +164,130 @@ def test_information_content_matches_controlled_r_flacco_1_8(case: str) -> None:
 
 def test_feature_discovery_returns_information_content_specs() -> None:
     assert tuple(spec.name for spec in list_features() if spec.group == "ic") == FEATURE_NAMES
+
+
+def dense_reference_curves(slopes: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Direct grid-by-slope transcription of the information-content curve definitions.
+
+    The engine accumulates the same curves from per-slope threshold events, so this
+    materialised form is the independent check that the accumulation is equivalent.
+    """
+    signs = np.sign(slopes).astype(np.int8)
+    symbols = np.where(np.abs(slopes)[None, :] < EPSILON[:, None], np.int8(0), signs[None, :])
+    codes = (symbols[:, :-1] + 1) * 3 + (symbols[:, 1:] + 1)
+    probabilities = np.stack(
+        [np.mean(codes == code, axis=1) for code in (1, 2, 3, 5, 6, 7)],
+        axis=1,
+    )
+    terms = np.zeros_like(probabilities)
+    positive = probabilities > 0.0
+    terms[positive] = probabilities[positive] * np.log(probabilities[positive]) / np.log(6.0)
+    entropy = -np.sum(terms, axis=1)
+
+    partial = np.empty(EPSILON.size, dtype=np.float64)
+    for index, row in enumerate(symbols):
+        nonzero = row[row != 0]
+        changes = np.count_nonzero(np.diff(nonzero) != 0) if nonzero.size > 1 else 0
+        partial[index] = changes / (symbols.shape[1] - 1)
+    return entropy, partial
+
+
+def computed_curves(slopes: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    sample = LandscapeSample(np.arange(4.0).reshape(-1, 1), np.zeros(4), [-1.0], [4.0])
+    cache: dict[str, object] = {"ic.slopes": SlopeSequence(slopes)}
+    cache["ic.symbols"] = symbol_schedule(ComputationContext(sample, cache, None))
+    context = ComputationContext(sample, cache, None)
+    return entropy_curve(context).values, partial_information_curve(context).values
+
+
+@pytest.mark.parametrize(
+    ("name", "slopes"),
+    [
+        ("alternating", np.array([1.0, -1.0, 1.0, -1.0])),
+        ("all_zero", np.zeros(6)),
+        ("interleaved_zeros", np.array([0.0, 1.0, 0.0, -1.0, 0.0])),
+        ("equal_magnitudes", np.array([1e-6, -1e-6, 1e-6])),
+        ("spanning_the_grid", np.array([1e-20, 1e20, 1.0, -1.0])),
+        ("shortest", np.array([-3.0, 3.0])),
+        ("on_grid_points", EPSILON[[1, 5, 500, 999]].copy()),
+        ("negated_grid_points", -EPSILON[[1, 5, 500, 999]]),
+        ("runs", np.array([1.0, 1.0, -1.0, -1.0, 1.0])),
+    ],
+)
+def test_curves_match_the_dense_grid_definition(name: str, slopes: np.ndarray) -> None:
+    expected_entropy, expected_partial = dense_reference_curves(slopes)
+    entropy, partial = computed_curves(slopes)
+
+    assert np.array_equal(entropy, expected_entropy)
+    assert np.array_equal(partial, expected_partial)
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_curves_match_the_dense_grid_definition_on_random_slopes(seed: int) -> None:
+    rng = np.random.Generator(np.random.PCG64(seed))
+    size = int(rng.integers(2, 200))
+    scale = 10.0 ** rng.integers(-8, 8, size=size)
+    # Rounding produces exactly tied magnitudes and exact zeros, the cases where an
+    # event-driven curve is most likely to disagree with the dense definition.
+    slopes = np.round(rng.normal(size=size) * scale, 3)
+    expected_entropy, expected_partial = dense_reference_curves(slopes)
+    entropy, partial = computed_curves(slopes)
+
+    assert np.array_equal(entropy, expected_entropy)
+    assert np.array_equal(partial, expected_partial)
+
+
+def test_symbol_schedule_stays_proportional_to_the_sample() -> None:
+    """The schedule must not grow with the epsilon grid, as the dense matrix used to."""
+    x = np.arange(50.0).reshape(-1, 1)
+    sample = sample_for(x, np.sin(x[:, 0]))
+    cache: dict[str, object] = {}
+    cache["ic.slopes"] = slope_sequence(ComputationContext(sample, cache, None))
+    schedule = symbol_schedule(ComputationContext(sample, cache, None))
+
+    assert schedule.signs.shape == (49,)
+    assert schedule.thresholds.shape == (49,)
+    assert schedule.signs.size + schedule.thresholds.size < EPSILON.size
+
+
+@pytest.mark.parametrize(("side", "dimension"), [(6, 2), (4, 3), (10, 2)])
+def test_tour_resolves_exact_distance_ties_on_integer_lattices(side: int, dimension: int) -> None:
+    """Every lattice neighbour is exactly equidistant, so tie handling decides the tour."""
+    axes = [np.arange(float(side))] * dimension
+    x = np.stack(np.meshgrid(*axes), axis=-1).reshape(-1, dimension)
+    rng = np.random.Generator(np.random.PCG64(4242))
+    y = rng.normal(size=x.shape[0])
+    sample = sample_for(x, y)
+
+    slopes = slope_sequence(ComputationContext(sample, {}, None)).values
+    permuted = rng.permutation(x.shape[0])
+    shuffled = slope_sequence(
+        ComputationContext(sample_for(x[permuted], y[permuted]), {}, None)
+    ).values
+
+    assert slopes.size == x.shape[0] - 1
+    assert np.array_equal(slopes, shuffled)
+
+
+def test_stored_neighbours_cover_the_tie_radius_only_strictly_inside_it() -> None:
+    """Justifies the strict comparison guarding the tour's fast tie path.
+
+    The tour skips its range query when the winning radius is strictly inside the stored
+    neighbour radius, because the stored list then provably holds every tied point. At the
+    stored radius itself that containment breaks, so the comparison must not be relaxed.
+    """
+    axes = [np.arange(6.0)] * 2
+    x = np.stack(np.meshgrid(*axes), axis=-1).reshape(-1, 2)
+    tree = KDTree(x)
+    distances, indices = tree.query(x, k=NEIGHBOURHOOD)
+
+    escapes_at_the_radius = 0
+    for row in range(x.shape[0]):
+        radius = float(distances[row, -1])
+        stored = set(indices[row].tolist())
+        inside = tree.query_ball_point(x[row], np.nextafter(radius, -np.inf))
+        assert set(inside) <= stored
+        if not set(tree.query_ball_point(x[row], radius)) <= stored:
+            escapes_at_the_radius += 1
+
+    assert escapes_at_the_radius > 0

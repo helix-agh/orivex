@@ -6,6 +6,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from types import MappingProxyType
+from typing import Generic, Literal, TypeAlias, TypeVar
+
+FeatureScalar = TypeVar("FeatureScalar")
+BackendName: TypeAlias = Literal["numpy", "torch"]
+DeviceType: TypeAlias = Literal["cpu", "cuda", "mps"]
+FloatingDType: TypeAlias = Literal["float32", "float64"]
 
 
 class FeatureStatus(str, Enum):
@@ -16,8 +22,8 @@ class FeatureStatus(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
-class FeatureValue:
-    value: float | int | None
+class FeatureValue(Generic[FeatureScalar]):
+    value: FeatureScalar | None
     status: FeatureStatus
     definition: str
     message: str | None = None
@@ -31,17 +37,32 @@ class ExecutionMetadata:
     runtime_seconds: float
     additional_objective_evaluations: int
     warnings: tuple[str, ...] = ()
+    workers: int = 1
+    backend: BackendName = "numpy"
+    device: DeviceType = "cpu"
+    device_index: int | None = None
+    dtype: FloatingDType = "float64"
 
     def __post_init__(self) -> None:
         if self.runtime_seconds < 0:
             raise ValueError("runtime_seconds must not be negative")
         if self.additional_objective_evaluations < 0:
             raise ValueError("additional objective evaluations must not be negative")
+        if self.workers == 0 or self.workers < -1:
+            raise ValueError("workers must be -1 or a positive integer")
+        if self.backend not in ("numpy", "torch"):
+            raise ValueError(f"unsupported backend: {self.backend!r}")
+        if self.device not in ("cpu", "cuda", "mps"):
+            raise ValueError(f"unsupported device type: {self.device!r}")
+        if self.device_index is not None and self.device_index < 0:
+            raise ValueError("device index must not be negative")
+        if self.dtype not in ("float32", "float64"):
+            raise ValueError(f"unsupported floating dtype: {self.dtype!r}")
 
 
 @dataclass(frozen=True, slots=True)
-class ComputationResult:
-    values: Mapping[str, FeatureValue]
+class ComputationResult(Generic[FeatureScalar]):
+    values: Mapping[str, FeatureValue[FeatureScalar]]
     metadata: ExecutionMetadata
 
     def __post_init__(self) -> None:

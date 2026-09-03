@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from .landscapes import linear_landscape, sphere_landscape
+from verification.landscapes import linear_landscape, sphere_landscape
 
 
 def test_linear_landscape_has_exact_values_and_derivatives() -> None:

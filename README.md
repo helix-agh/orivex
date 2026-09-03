@@ -37,8 +37,40 @@ With plain `pip`:
 python -m pip install -e ".[dev]"
 ```
 
+PyTorch is an optional tensor-native backend and is not imported or installed for NumPy users:
+
+```bash
+python -m pip install -e ".[torch]"
+```
+
 Every example below can also be run straight from the checkout without installing anything, by
 putting the source tree on the import path: `PYTHONPATH=src python your_script.py`.
+
+### Differentiable PyTorch features
+
+The explicit `bflacco.torch` namespace keeps tensors on their existing device, preserves their
+floating dtype, and returns scalar tensors connected to the autograd graph. The initial profile
+contains the distribution skewness and kurtosis features:
+
+```python
+import torch
+
+from bflacco.torch import TensorLandscapeSample, compute
+
+x = torch.rand(200, 2, device="cuda", dtype=torch.float32, requires_grad=True)
+y = torch.sum(x**2, dim=1)
+bounds = torch.full((2,), 5.0, device=x.device, dtype=x.dtype)
+sample = TensorLandscapeSample(x, y, lower=-bounds, upper=bounds)
+
+result = compute(sample, "ela_distr.skewness")
+feature = result.values["ela_distr.skewness"].value
+feature.backward()
+```
+
+There is no implicit fallback to NumPy: requesting a known feature that has no Torch calculator
+raises `UnsupportedFeatureError`. Use `bflacco.torch.list_features()` and
+`bflacco.torch.list_capabilities()` to discover the implemented profile and its declared device,
+dtype, and autograd support.
 
 ## Usage
 
@@ -97,7 +129,22 @@ metadata.computed_intermediates  # shared intermediates actually evaluated
 metadata.sample_fingerprint  # SHA-256 over X, y, bounds, and objective sense
 metadata.additional_objective_evaluations  # 0 for every currently implemented feature
 metadata.runtime_seconds  # wall-clock time of this call
+metadata.workers  # explicit worker budget used by supporting kernels
 ```
+
+### Controlling parallel work
+
+Feature computation defaults to one worker so repeated or externally parallel analyses do not
+silently occupy every CPU. Supporting kernels can use a specific positive worker count, or all
+available CPUs with `-1`:
+
+```python
+fast_single_landscape = compute(sample, "ic.*", workers=-1)
+```
+
+Using all CPUs reduces IC wall latency on sufficiently large samples, but increases total CPU
+consumption and can be slower for small samples. Keep the default when parallelizing across many
+landscapes.
 
 The fingerprint identifies the exact numerical input, which makes it usable as a cache key or as
 provenance stored next to an experiment's results.

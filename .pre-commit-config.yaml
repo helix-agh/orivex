@@ -31,4 +31,4 @@ repos:
     rev: v0.0.75
     hooks:
       - id: ty
-        args: [--isolated]
+        args: [--isolated, --extra=torch]

@@ -6,14 +6,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..engine import (
+from bflacco.engine import (
     ComputationContext,
     FeatureDefinition,
     FeatureUnavailable,
     IntermediateDefinition,
 )
-from ..planner import IntermediateSpec
-from ..specs import (
+from bflacco.planner import IntermediateSpec
+from bflacco.specs import (
     CostModel,
     CostTier,
     FeatureSpec,
