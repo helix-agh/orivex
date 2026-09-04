@@ -9,7 +9,12 @@ from bflacco.capabilities import FeatureCapability
 from bflacco.result import ComputationResult
 from bflacco.specs import FeatureSpec
 from bflacco.torch.engine import TensorEngine
-from bflacco.torch.features.distribution import CAPABILITIES, FEATURES, INTERMEDIATES
+from bflacco.torch.features.distribution import CAPABILITIES as DISTRIBUTION_CAPABILITIES
+from bflacco.torch.features.distribution import FEATURES as DISTRIBUTION_FEATURES
+from bflacco.torch.features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
+from bflacco.torch.features.meta_model import CAPABILITIES as META_MODEL_CAPABILITIES
+from bflacco.torch.features.meta_model import FEATURES as META_MODEL_FEATURES
+from bflacco.torch.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
 from bflacco.torch.sample import TensorLandscapeSample
 
 
@@ -17,7 +22,15 @@ class UnsupportedFeatureError(ValueError):
     """The requested feature exists in bflacco but not in the Torch backend."""
 
 
-DEFAULT_ENGINE = TensorEngine(FEATURES, INTERMEDIATES)
+class UnsupportedFeatureDeviceError(ValueError):
+    """The requested Torch feature is unavailable on the sample's device type."""
+
+
+DEFAULT_ENGINE = TensorEngine(
+    DISTRIBUTION_FEATURES + META_MODEL_FEATURES,
+    DISTRIBUTION_INTERMEDIATES + META_MODEL_INTERMEDIATES,
+)
+CAPABILITIES = DISTRIBUTION_CAPABILITIES + META_MODEL_CAPABILITIES
 
 
 def _supported_feature_names(
@@ -40,7 +53,17 @@ def compute(
 
     if not isinstance(sample, TensorLandscapeSample):
         raise TypeError("sample must be a bflacco.torch.TensorLandscapeSample")
-    return DEFAULT_ENGINE.compute(sample, _supported_feature_names(features))
+    feature_names = _supported_feature_names(features)
+    capabilities = {capability.feature_name: capability for capability in CAPABILITIES}
+    unavailable = tuple(
+        name for name in feature_names if sample.device_type not in capabilities[name].devices
+    )
+    if unavailable:
+        joined = ", ".join(unavailable)
+        raise UnsupportedFeatureDeviceError(
+            f"features are not available on device type {sample.device_type!r}: {joined}"
+        )
+    return DEFAULT_ENGINE.compute(sample, feature_names)
 
 
 def list_features() -> tuple[FeatureSpec, ...]:

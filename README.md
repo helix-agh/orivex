@@ -49,8 +49,9 @@ putting the source tree on the import path: `PYTHONPATH=src python your_script.p
 ### Differentiable PyTorch features
 
 The explicit `bflacco.torch` namespace keeps tensors on their existing device, preserves their
-floating dtype, and returns scalar tensors connected to the autograd graph. The initial profile
-contains the distribution skewness and kurtosis features:
+floating dtype, and returns scalar tensors connected to the autograd graph. The differentiable
+profile contains distribution skewness and kurtosis plus the ELA meta-model adjusted R-squared
+and linear-intercept features:
 
 ```python
 import torch

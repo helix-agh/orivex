@@ -124,10 +124,20 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
     assert tuple(spec.name for spec in specs) == (
         "ela_distr.kurtosis",
         "ela_distr.skewness",
+        "ela_meta.lin_simple.adj_r2",
+        "ela_meta.lin_simple.intercept",
+        "ela_meta.lin_w_interact.adj_r2",
+        "ela_meta.quad_simple.adj_r2",
+        "ela_meta.quad_w_interact.adj_r2",
     )
     assert tuple(capability.feature_name for capability in capabilities) == (
         "ela_distr.kurtosis",
         "ela_distr.skewness",
+        "ela_meta.lin_simple.adj_r2",
+        "ela_meta.lin_simple.intercept",
+        "ela_meta.lin_w_interact.adj_r2",
+        "ela_meta.quad_simple.adj_r2",
+        "ela_meta.quad_w_interact.adj_r2",
     )
     assert all(capability.backend == "torch" for capability in capabilities)
     assert all(capability.autograd == "smooth" for capability in capabilities)
