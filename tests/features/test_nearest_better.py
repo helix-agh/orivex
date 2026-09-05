@@ -100,6 +100,45 @@ def test_nbc_reports_structured_status_for_one_observation() -> None:
     assert all("at least 2" in item.message for item in result.values.values())
 
 
+def test_zero_nearest_sd_over_positive_denominator_is_valid_zero() -> None:
+    # Nearest distances are constant ([1,1,1,1]) so their SD is exactly zero, while the
+    # nearest-better distances ([1,1,1,3]) vary. The ratio is a defined 0.0, not INVALID.
+    x = np.array([[0.0], [1.0], [2.0], [3.0]])
+    y = np.array([0.0, 3.0, 2.0, 1.0])
+
+    item = compute(sample_for(x, y), "nbc.nn_nb.sd_ratio", y_normalization="none").values[
+        "nbc.nn_nb.sd_ratio"
+    ]
+
+    assert item.status is FeatureStatus.OK
+    assert item.value == 0.0
+
+
+def test_constant_distance_ratios_have_zero_coefficient_of_variation() -> None:
+    # Every nearest/nearest-better distance ratio equals one, so the coefficient of variation
+    # is a defined 0.0 rather than a zero-variation failure.
+    x = np.array([[0.0], [1.0], [3.0], [6.0]])
+    y = np.array([0.0, 1.0, 2.0, 3.0])
+
+    item = compute(sample_for(x, y), "nbc.dist_ratio.coeff_var", y_normalization="none").values[
+        "nbc.dist_ratio.coeff_var"
+    ]
+
+    assert item.status is FeatureStatus.OK
+    assert item.value == 0.0
+
+
+def test_zero_nearest_better_denominator_remains_invalid() -> None:
+    # Constant nearest-better distances make the sd_ratio denominator zero: still undefined.
+    x = np.array([[0.0], [1.0], [2.0], [3.0]])
+    y = np.array([3.0, 2.0, 1.0, 0.0])
+    result = compute(sample_for(x, y), "nbc.nn_nb.sd_ratio", y_normalization="none")
+    item = result.values["nbc.nn_nb.sd_ratio"]
+
+    assert item.status is FeatureStatus.INVALID
+    assert item.message is not None and "zero variation" in item.message
+
+
 @pytest.mark.parametrize("case", ["linear_d2", "sphere_d2"])
 def test_nbc_matches_r_flacco_1_8(case: str) -> None:
     with (FIXTURE_ROOT / "inputs" / f"{case}.csv").open(newline="", encoding="utf-8") as stream:
