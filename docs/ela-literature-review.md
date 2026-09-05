@@ -1,7 +1,6 @@
 # Exploratory Landscape Analysis features used in benchmark analysis and machine learning
 
-**Purpose:** choose the essential feature surface for `orivex`, a correctness-first
-replacement for `pflacco`
+**Purpose:** choose the essential feature surface for `orivex`, a replacement for `pflacco`
 **Status:** living report; the paper-level evidence and feature inventory are usable now,
 but the corpus can be extended as new application papers are identified
 **Literature checked through:** 30 August 2026

@@ -1,6 +1,6 @@
 # Roadmap
 
-## Phase 0: correctness foundation
+## Phase 0: feature specifications and validation
 
 - Define the feature-specification schema.
 - Catalogue verified defects and ambiguous semantics in `pflacco` 1.2.2.

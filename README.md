@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <strong>A correctness-first, selective, and fast engine for exploratory landscape analysis.</strong>
+  <strong>A selective and fast engine for exploratory landscape analysis.</strong>
 </p>
 
 <p align="center">
@@ -24,10 +24,10 @@
   <a href="#benchmarks">Benchmarks</a>
 </p>
 
-**orivex** is a correctness-first successor to [`pflacco`](https://github.com/Reiyan/pflacco)
+**orivex** is a successor to [`pflacco`](https://github.com/Reiyan/pflacco)
 for exploratory landscape analysis (ELA). It computes ELA features from a sample of decision
 vectors and their objective values, and it is designed so that every feature is individually
-selectable, independently verified, and explicit about its computational cost.
+selectable and explicit about its computational cost.
 
 The project is in its initial specification and verification phase. It is not yet a drop-in
 replacement for `pflacco`.
@@ -40,7 +40,7 @@ replacement for `pflacco`.
   numerical intermediate a single time per request.
 - **Explicit costs** — CPU, memory, and additional objective-evaluation costs are declared,
   never hidden.
-- **Verified correctness** — every feature carries a versioned mathematical specification and
+- **Mathematical specifications** — every feature carries a versioned mathematical specification and
   is checked with analytical, metamorphic, and R `flacco` differential tests.
 - **Two backends** — a NumPy/SciPy core plus an optional, fully differentiable PyTorch backend
   that keeps tensors on their device and connected to the autograd graph.
