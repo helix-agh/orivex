@@ -1,24 +1,60 @@
-# bflacco
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/orivex-lockup-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/orivex-lockup-light.png">
+    <img alt="orivex" src="assets/orivex-lockup-light.png" width="440">
+  </picture>
+</p>
 
-**Better FLACCO** is a correctness-first successor to `pflacco` for exploratory
-landscape analysis (ELA).
+<p align="center">
+  <strong>A correctness-first, selective, and fast engine for exploratory landscape analysis.</strong>
+</p>
 
-The project is being built around four guarantees:
+<p align="center">
+  <a href="https://www.python.org/downloads/"><img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10+-blue.svg"></a>
+  <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-orange.svg">
+  <img alt="Backends: NumPy and PyTorch" src="https://img.shields.io/badge/backends-NumPy%20%7C%20PyTorch-informational.svg">
+</p>
 
-- individual features are selectable without calculating an entire historical group;
-- shared numerical intermediates are calculated once by a dependency planner;
-- CPU, memory, and additional objective-evaluation costs are explicit;
-- every feature has a versioned mathematical specification and independent verification.
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="docs/roadmap.md">Roadmap</a> ·
+  <a href="docs/verification.md">Verification</a> ·
+  <a href="#benchmarks">Benchmarks</a>
+</p>
 
-The project is in its initial specification and verification phase. It is not yet a
-drop-in replacement for `pflacco`.
+**orivex** is a correctness-first successor to [`pflacco`](https://github.com/Reiyan/pflacco)
+for exploratory landscape analysis (ELA). It computes ELA features from a sample of decision
+vectors and their objective values, and it is designed so that every feature is individually
+selectable, independently verified, and explicit about its computational cost.
 
-Currently implemented feature slices:
+> The import package is still `bflacco` while the rename to `orivex` is in progress.
 
-- `ela_distr`: individually selectable type-3 skewness and kurtosis;
-- `ela_meta`: selected linear and corrected quadratic model intercept/fit statistics;
-- `ic`: all five information-content outputs with a deterministic nearest-neighbour tour;
-- `nbc`: all five nearest-better-clustering outputs with deterministic tie handling.
+The project is in its initial specification and verification phase. It is not yet a drop-in
+replacement for `pflacco`.
+
+## Why orivex
+
+- **Selective computation** — request individual features without calculating an entire
+  historical group; the planner evaluates only the intermediates they depend on.
+- **Shared intermediates, computed once** — a dependency planner calculates each shared
+  numerical intermediate a single time per request.
+- **Explicit costs** — CPU, memory, and additional objective-evaluation costs are declared,
+  never hidden.
+- **Verified correctness** — every feature carries a versioned mathematical specification and
+  is checked with analytical, metamorphic, and R `flacco` differential tests.
+- **Two backends** — a NumPy/SciPy core plus an optional, fully differentiable PyTorch backend
+  that keeps tensors on their device and connected to the autograd graph.
+
+## Implemented features
+
+| Group        | Feature slice                                                          |
+| ------------ | --------------------------------------------------------------------- |
+| `ela_distr`  | individually selectable type-3 skewness and kurtosis                  |
+| `ela_meta`   | selected linear and corrected quadratic model intercept/fit statistics |
+| `ic`         | all five information-content outputs, deterministic nearest-neighbour tour |
+| `nbc`        | all five nearest-better-clustering outputs, deterministic tie handling |
 
 ## Installation
 
