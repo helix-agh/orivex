@@ -1,7 +1,15 @@
-# bflacco
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/orivex-lockup-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/orivex-lockup-light.png">
+    <img alt="orivex" src="assets/orivex-lockup-light.png" width="440">
+  </picture>
+</p>
 
-**Better FLACCO** is a correctness-first successor to `pflacco` for exploratory
+**orivex** is a correctness-first successor to `pflacco` for exploratory
 landscape analysis (ELA).
+
+> The import package is still `bflacco` while the rename to `orivex` is in progress.
 
 The project is being built around four guarantees:
 
