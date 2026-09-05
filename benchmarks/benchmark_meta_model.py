@@ -1,4 +1,4 @@
-"""Benchmark selective bflacco meta-model computation across sample sizes."""
+"""Benchmark selective orivex meta-model computation across sample sizes."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import bflacco
-from bflacco import LandscapeSample, compute
+import orivex
+from orivex import LandscapeSample, compute
 
 SELECTORS = (
     "ela_meta.lin_simple.adj_r2",
@@ -90,7 +90,7 @@ def main() -> None:
             "python": platform.python_version(),
             "platform": platform.platform(),
             "machine": platform.machine(),
-            "bflacco": bflacco.__version__,
+            "orivex": orivex.__version__,
             "numpy": np.__version__,
         },
         "settings": {

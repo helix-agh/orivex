@@ -3,7 +3,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bflacco"
+name = "orivex"
 version = "0.0.0"
 description = "A correctness-first, selective, and fast exploratory landscape analysis engine."
 readme = "README.md"
@@ -54,7 +54,7 @@ target-version = "py310"
 select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "PTH", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["bflacco"]
+known-first-party = ["orivex"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG"]

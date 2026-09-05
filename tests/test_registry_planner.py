@@ -1,8 +1,8 @@
 import pytest
 
-from bflacco.planner import IntermediateSpec, Planner, PlanningError
-from bflacco.registry import DuplicateFeatureError, FeatureRegistry, UnknownFeatureSelection
-from bflacco.specs import (
+from orivex.planner import IntermediateSpec, Planner, PlanningError
+from orivex.registry import DuplicateFeatureError, FeatureRegistry, UnknownFeatureSelection
+from orivex.specs import (
     CostModel,
     CostTier,
     FeatureSpec,

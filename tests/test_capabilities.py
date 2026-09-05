@@ -2,8 +2,8 @@ from typing import cast
 
 import pytest
 
-from bflacco.capabilities import AutogradSupport, FeatureCapability
-from bflacco.result import BackendName, DeviceType, FloatingDType
+from orivex.capabilities import AutogradSupport, FeatureCapability
+from orivex.result import BackendName, DeviceType, FloatingDType
 
 
 def valid_capability(**overrides: object) -> FeatureCapability:

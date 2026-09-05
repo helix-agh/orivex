@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bflacco import LandscapeSample, compute, list_features
-from bflacco.result import FeatureStatus
+from orivex import LandscapeSample, compute, list_features
+from orivex.result import FeatureStatus
 
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "r_flacco"
 FEATURE_NAMES = (

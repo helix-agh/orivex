@@ -6,18 +6,18 @@ from dataclasses import dataclass
 
 import torch
 
-from bflacco.capabilities import FeatureCapability
-from bflacco.engine import FeatureUnavailable
-from bflacco.features.meta_model import (
+from orivex.capabilities import FeatureCapability
+from orivex.engine import FeatureUnavailable
+from orivex.features.meta_model import (
     LIN_INTERACT_ADJ_R2,
     LIN_SIMPLE_ADJ_R2,
     LIN_SIMPLE_INTERCEPT,
     QUAD_INTERACT_ADJ_R2,
     QUAD_SIMPLE_ADJ_R2,
 )
-from bflacco.planner import IntermediateSpec
-from bflacco.specs import InputRequirement
-from bflacco.torch.engine import (
+from orivex.planner import IntermediateSpec
+from orivex.specs import InputRequirement
+from orivex.torch.engine import (
     TensorComputationContext,
     TensorFeatureDefinition,
     TensorIntermediateDefinition,

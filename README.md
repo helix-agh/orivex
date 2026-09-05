@@ -29,8 +29,6 @@ for exploratory landscape analysis (ELA). It computes ELA features from a sample
 vectors and their objective values, and it is designed so that every feature is individually
 selectable, independently verified, and explicit about its computational cost.
 
-> The import package is still `bflacco` while the rename to `orivex` is in progress.
-
 The project is in its initial specification and verification phase. It is not yet a drop-in
 replacement for `pflacco`.
 
@@ -84,7 +82,7 @@ putting the source tree on the import path: `PYTHONPATH=src python your_script.p
 
 ### Differentiable PyTorch features
 
-The explicit `bflacco.torch` namespace keeps tensors on their existing device, preserves their
+The explicit `orivex.torch` namespace keeps tensors on their existing device, preserves their
 floating dtype, and returns scalar tensors connected to the autograd graph. The differentiable
 profile contains distribution skewness and kurtosis plus the ELA meta-model adjusted R-squared
 and linear-intercept features:
@@ -92,7 +90,7 @@ and linear-intercept features:
 ```python
 import torch
 
-from bflacco.torch import TensorLandscapeSample, compute
+from orivex.torch import TensorLandscapeSample, compute
 
 x = torch.rand(200, 2, device="cuda", dtype=torch.float32, requires_grad=True)
 y = torch.sum(x**2, dim=1)
@@ -105,8 +103,8 @@ feature.backward()
 ```
 
 There is no implicit fallback to NumPy: requesting a known feature that has no Torch calculator
-raises `UnsupportedFeatureError`. Use `bflacco.torch.list_features()` and
-`bflacco.torch.list_capabilities()` to discover the implemented profile and its declared device,
+raises `UnsupportedFeatureError`. Use `orivex.torch.list_features()` and
+`orivex.torch.list_capabilities()` to discover the implemented profile and its declared device,
 dtype, and autograd support.
 
 ## Usage
@@ -119,7 +117,7 @@ you want. Selectors are exact feature names or `fnmatch` globs, given as a singl
 ```python
 import numpy as np
 
-from bflacco import LandscapeSample, compute
+from orivex import LandscapeSample, compute
 
 rng = np.random.default_rng(20260830)
 lower, upper = np.full(2, -5.0), np.full(2, 5.0)
@@ -175,7 +173,7 @@ and execution settings for result caching. The raw sample fingerprint alone does
 the normalization mode.
 
 Torch preprocessing preserves dtype, device, and gradients. Min-max is piecewise differentiable
-at changes in the extrema; `bflacco.torch.list_capabilities()` conservatively reports the default
+at changes in the extrema; `orivex.torch.list_capabilities()` conservatively reports the default
 pipeline as `piecewise`. Pass `y_normalization="none"` or `"zscore"` to capability discovery to
 inspect those modes. This is objective preprocessing, separate from scaling a feature vector
 for a downstream machine-learning model.
@@ -226,7 +224,7 @@ Declare the objective sense instead of negating `y` by hand. Features that claim
 sense reversal return identical values either way.
 
 ```python
-from bflacco import ObjectiveSense
+from orivex import ObjectiveSense
 
 maximizing = LandscapeSample(x, -y, lower=lower, upper=upper, sense=ObjectiveSense.MAXIMIZE)
 minimizing = LandscapeSample(x, y, lower=lower, upper=upper)
@@ -241,7 +239,7 @@ compute(maximizing, "nbc.*")  # same values as compute(minimizing, "nbc.*")
 `list_features()` returns the full specification of every registered feature, not just its name.
 
 ```python
-from bflacco import list_features
+from orivex import list_features
 
 for spec in list_features():
     print(
@@ -279,7 +277,7 @@ A feature that is undefined for an otherwise valid sample returns a `FeatureValu
 `invalid` and an explanation rather than raising or silently producing `NaN`.
 
 ```python
-from bflacco.result import FeatureStatus
+from orivex.result import FeatureStatus
 
 flat = LandscapeSample(x, np.zeros(len(x)), lower=lower, upper=upper)
 item = compute(flat, "ela_distr.skewness").values["ela_distr.skewness"]
@@ -292,7 +290,7 @@ item.message  # 'skewness is undefined for constant objective values'
 A selector that matches no registered feature is a caller error and raises instead:
 
 ```python
-from bflacco.registry import UnknownFeatureSelection
+from orivex.registry import UnknownFeatureSelection
 
 compute(sample, "ela_meta.nonexistent")
 # UnknownFeatureSelection: selector matched no features: ela_meta.nonexistent
@@ -330,7 +328,7 @@ uv run pytest                                        # everything
 uv run pytest tests/features/test_information_content.py
 uv run pytest -k nearest_better                      # one feature family
 uv run pytest tests/verification                     # metamorphic and differential checks
-uv run pytest --cov=bflacco --cov-report=term-missing
+uv run pytest --cov=orivex --cov-report=term-missing
 ```
 
 The stability-experiment regression tests additionally require the benchmark extra:
@@ -348,7 +346,7 @@ Rscript tools/generate_r_fixtures.R
 ## Benchmarks
 
 Benchmarks are diagnostics, not assertions in the test suite. Run them from the repository root.
-The two standalone bflacco benchmarks need nothing beyond the runtime dependencies:
+The two standalone orivex benchmarks need nothing beyond the runtime dependencies:
 
 ```bash
 uv run python benchmarks/benchmark_distribution.py

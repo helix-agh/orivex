@@ -9,8 +9,8 @@ from typing import TypeAlias
 
 import torch
 
-from bflacco.result import DeviceType, FloatingDType
-from bflacco.sample import ObjectiveSense, ObjectiveSenseName
+from orivex.result import DeviceType, FloatingDType
+from orivex.sample import ObjectiveSense, ObjectiveSenseName
 
 TensorValue: TypeAlias = torch.Tensor | int | float | Sequence[int | float]
 _SUPPORTED_DTYPES = (torch.float32, torch.float64)

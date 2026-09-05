@@ -3,17 +3,17 @@
 import numpy as np
 import pytest
 
-from bflacco.engine import (
+from orivex.engine import (
     ComputationContext,
     Engine,
     FeatureDefinition,
     FeatureUnavailable,
     IntermediateDefinition,
 )
-from bflacco.planner import IntermediateSpec
-from bflacco.result import FeatureStatus
-from bflacco.sample import LandscapeSample
-from bflacco.specs import (
+from orivex.planner import IntermediateSpec
+from orivex.result import FeatureStatus
+from orivex.sample import LandscapeSample
+from orivex.specs import (
     CostModel,
     CostTier,
     FeatureSpec,

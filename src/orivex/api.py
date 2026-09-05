@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import numpy as np
 
-from bflacco.engine import Engine
-from bflacco.features.distribution import FEATURES as DISTRIBUTION_FEATURES
-from bflacco.features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
-from bflacco.features.information_content import FEATURES as INFORMATION_CONTENT_FEATURES
-from bflacco.features.information_content import INTERMEDIATES as INFORMATION_CONTENT_INTERMEDIATES
-from bflacco.features.meta_model import FEATURES as META_MODEL_FEATURES
-from bflacco.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
-from bflacco.features.nearest_better import FEATURES as NEAREST_BETTER_FEATURES
-from bflacco.features.nearest_better import INTERMEDIATES as NEAREST_BETTER_INTERMEDIATES
-from bflacco.normalization import YNormalization
-from bflacco.result import ComputationResult
-from bflacco.sample import LandscapeSample
-from bflacco.specs import FeatureSpec
+from orivex.engine import Engine
+from orivex.features.distribution import FEATURES as DISTRIBUTION_FEATURES
+from orivex.features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
+from orivex.features.information_content import FEATURES as INFORMATION_CONTENT_FEATURES
+from orivex.features.information_content import INTERMEDIATES as INFORMATION_CONTENT_INTERMEDIATES
+from orivex.features.meta_model import FEATURES as META_MODEL_FEATURES
+from orivex.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
+from orivex.features.nearest_better import FEATURES as NEAREST_BETTER_FEATURES
+from orivex.features.nearest_better import INTERMEDIATES as NEAREST_BETTER_INTERMEDIATES
+from orivex.normalization import YNormalization
+from orivex.result import ComputationResult
+from orivex.sample import LandscapeSample
+from orivex.specs import FeatureSpec
 
 DEFAULT_ENGINE = Engine(
     DISTRIBUTION_FEATURES

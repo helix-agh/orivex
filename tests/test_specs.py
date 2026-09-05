@@ -1,6 +1,6 @@
 import pytest
 
-from bflacco.specs import (
+from orivex.specs import (
     CostModel,
     CostTier,
     FeatureSpec,

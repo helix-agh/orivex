@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from bflacco.normalization import YNormalization, normalization_definition
+from orivex.normalization import YNormalization, normalization_definition
 
 
 def normalize_objectives(y: torch.Tensor, mode: YNormalization) -> tuple[torch.Tensor, bool]:

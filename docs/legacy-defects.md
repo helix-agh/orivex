@@ -2,7 +2,7 @@
 
 Reference implementation: `pflacco` 1.2.2 at commit `4689566` (2023-08-25).
 
-This catalogue distinguishes corrected bflacco definitions from any future explicit
+This catalogue distinguishes corrected orivex definitions from any future explicit
 `pflacco-1.2.2` compatibility definitions. Legacy behavior is never enabled through an
 ambiguous Boolean flag.
 

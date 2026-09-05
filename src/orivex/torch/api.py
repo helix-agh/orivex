@@ -6,23 +6,23 @@ from dataclasses import replace
 
 import torch
 
-from bflacco.api import DEFAULT_ENGINE as NUMPY_ENGINE
-from bflacco.capabilities import FeatureCapability
-from bflacco.normalization import YNormalization, normalization_definition
-from bflacco.result import ComputationResult
-from bflacco.specs import FeatureSpec
-from bflacco.torch.engine import TensorEngine
-from bflacco.torch.features.distribution import CAPABILITIES as DISTRIBUTION_CAPABILITIES
-from bflacco.torch.features.distribution import FEATURES as DISTRIBUTION_FEATURES
-from bflacco.torch.features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
-from bflacco.torch.features.meta_model import CAPABILITIES as META_MODEL_CAPABILITIES
-from bflacco.torch.features.meta_model import FEATURES as META_MODEL_FEATURES
-from bflacco.torch.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
-from bflacco.torch.sample import TensorLandscapeSample
+from orivex.api import DEFAULT_ENGINE as NUMPY_ENGINE
+from orivex.capabilities import FeatureCapability
+from orivex.normalization import YNormalization, normalization_definition
+from orivex.result import ComputationResult
+from orivex.specs import FeatureSpec
+from orivex.torch.engine import TensorEngine
+from orivex.torch.features.distribution import CAPABILITIES as DISTRIBUTION_CAPABILITIES
+from orivex.torch.features.distribution import FEATURES as DISTRIBUTION_FEATURES
+from orivex.torch.features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
+from orivex.torch.features.meta_model import CAPABILITIES as META_MODEL_CAPABILITIES
+from orivex.torch.features.meta_model import FEATURES as META_MODEL_FEATURES
+from orivex.torch.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
+from orivex.torch.sample import TensorLandscapeSample
 
 
 class UnsupportedFeatureError(ValueError):
-    """The requested feature exists in bflacco but not in the Torch backend."""
+    """The requested feature exists in orivex but not in the Torch backend."""
 
 
 class UnsupportedFeatureDeviceError(ValueError):
@@ -62,7 +62,7 @@ def compute(
     """
 
     if not isinstance(sample, TensorLandscapeSample):
-        raise TypeError("sample must be a bflacco.torch.TensorLandscapeSample")
+        raise TypeError("sample must be a orivex.torch.TensorLandscapeSample")
     feature_names = _supported_feature_names(features)
     capabilities = {capability.feature_name: capability for capability in CAPABILITIES}
     unavailable = tuple(

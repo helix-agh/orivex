@@ -3,11 +3,11 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from bflacco import LandscapeSample
-from bflacco import compute as compute_numpy
-from bflacco.result import FeatureStatus
-from bflacco.torch import TensorLandscapeSample
-from bflacco.torch import compute as compute_torch
+from orivex import LandscapeSample
+from orivex import compute as compute_numpy
+from orivex.result import FeatureStatus
+from orivex.torch import TensorLandscapeSample
+from orivex.torch import compute as compute_torch
 
 FEATURE_NAMES = (
     "ela_meta.lin_simple.adj_r2",

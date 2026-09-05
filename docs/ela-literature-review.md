@@ -1,6 +1,6 @@
 # Exploratory Landscape Analysis features used in benchmark analysis and machine learning
 
-**Purpose:** choose the essential feature surface for `bflacco`, a correctness-first
+**Purpose:** choose the essential feature surface for `orivex`, a correctness-first
 replacement for `pflacco`
 **Status:** living report; the paper-level evidence and feature inventory are usable now,
 but the corpus can be extended as new application papers are identified
@@ -129,7 +129,7 @@ similar-looking old and new names are automatically identical.
 
 ### Benchmark analysis, classification, and robustness
 
-| Paper | Venue / task | Features used | Main observation for `bflacco` |
+| Paper | Venue / task | Features used | Main observation for `orivex` |
 |---|---|---|---|
 | [Renau et al., *Exploratory Landscape Analysis is Strongly Sensitive to the Sampling Strategy*](https://doi.org/10.1007/978-3-030-58115-2_10) | PPSN 2020; BBOB classification and sampling study | 46 features from `disp`, `ic`, `nbc`, `ela_meta`, `ela_distr`, `pca` | Feature values from random, LHS, improved LHS, and Sobol designs do not converge to a common sampling-independent value. The sampling design is part of feature provenance. Sobol gave the best classification accuracy in their experiment. |
 | [Škvorc et al., *Understanding the Problem Space ... Using ELA*](https://doi.org/10.1016/j.asoc.2020.106138) | *Applied Soft Computing* 2020; CEC/BBOB visualization and clustering | Broad `flacco` features followed by redundancy/transform analyses | Supports benchmark-space analysis but shows substantial redundancy and lack of invariance under simple transformations. |
@@ -143,7 +143,7 @@ similar-looking old and new names are automatically identical.
 
 ### ELA-guided benchmark generation
 
-| Paper | Venue / task | Feature inputs | Main observation for `bflacco` |
+| Paper | Venue / task | Feature inputs | Main observation for `orivex` |
 |---|---|---|---|
 | [Prager et al., *Neural Networks as Black-Box Benchmark Functions Optimized for ELA Features*](https://doi.org/10.1145/3594805.3607136) | FOGA 2023; generate BBOB-like and feature-space-filling benchmark functions | Exact 8-output target: `ela_meta.lin_simple.adj_r2`, `ela_meta.lin_w_interact.adj_r2`, `ela_meta.quad_simple.adj_r2`, `ela_meta.quad_w_interact.adj_r2`, `ela_distr.skewness`, `nbc.nb_fitness.cor`, `nbc.nn_nb.sd_ratio`, `fitness_distance.fitness_std`; LHS of `250d`, min-max-scaled `y` | Strong individual evidence for meta-model fit, skewness, and NBC. Also creates demand for stable, optimizable semantics: a feature can become an objective, not just a predictor column. |
 | [Long et al., *Challenges of ELA-guided Function Evolution Using Genetic Programming*](https://arxiv.org/abs/2305.15245) | 2023 preprint; evolve functions toward BBOB targets | Broad cheap `pflacco` subset computed on Sobol designs and bootstrapped; excludes the four PCA outputs concerned only with the design coordinates | Feature-space distance and scaling matter. Equal weighting can overemphasize unstable features such as coefficient ratios, and the statistically motivated Wasserstein distance separated same/different BBOB functions less clearly than cosine or correlation distance in this experiment. |
@@ -155,7 +155,7 @@ because discontinuities or sentinel values can mislead a feature-guided generato
 
 ### ML models for selection, regression, and configuration
 
-| Paper | Venue / task | Feature inputs and selected features | Main observation for `bflacco` |
+| Paper | Venue / task | Feature inputs and selected features | Main observation for `orivex` |
 |---|---|---|---|
 | [Kerschke and Trautmann, *Automated Algorithm Selection on Continuous Black-Box Problems*](https://doi.org/10.1162/evco_a_00236) | *Evolutionary Computation* 2019; select from 12 BBOB solvers | 102 inputs from classical ELA, basic, cell angle, dispersion, IC, NBC, PCA. Model 1 selected all three distribution outputs, one level-set ratio, `ic.h_max`, `ic.eps_s`, one cell-angle statistic, and best sampled fitness. The better Model 2 retained skewness, level/cell features and added two meta-model plus four NBC features. | Strong individual evidence for all distribution outputs, quadratic/linear meta-model statistics, and all four structural NBC correlations/ratios. The best model needed only nine features. |
 | [Jankovic and Doerr, *Landscape-Aware Fixed-Budget Performance Regression and Algorithm Selection*](https://doi.org/10.1145/3377930.3390183) | GECCO 2020; modular CMA-ES performance regression/selection | 56 inputs from distribution, level set, meta-model, dispersion, IC, NBC. A nine-feature model used `disp.diff_mean_02`, `ela_distr.skewness`, four meta-model outputs, `ic.eps_ratio`, `ic.eps_s`, `nbc.nb_fitness.cor`. | The clearest compact portfolio in the literature; it improved over using all features for most reported regression comparisons. |
@@ -406,7 +406,7 @@ many 2020--2025 baselines calculate the family. They are nevertheless a second-w
 - Feature selection results depend on objective scaling, sampling design, sample size,
   dimension, algorithm portfolio, budget, model class, and validation split.
 
-## Requirements implied for `bflacco`
+## Requirements implied for `orivex`
 
 ### 1. Sampling and transforms are part of the feature definition
 

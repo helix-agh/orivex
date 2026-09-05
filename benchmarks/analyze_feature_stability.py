@@ -21,8 +21,8 @@ import numpy as np
 from scipy.stats import rankdata
 from threadpoolctl import threadpool_info, threadpool_limits
 
-import bflacco
-from bflacco import LandscapeSample, compute, list_features
+import orivex
+from orivex import LandscapeSample, compute, list_features
 
 Array = np.ndarray
 
@@ -347,7 +347,7 @@ def main() -> None:
             "python": platform.python_version(),
             "platform": platform.platform(),
             "numpy": np.__version__,
-            "bflacco": bflacco.__version__,
+            "orivex": orivex.__version__,
             "native_libraries": native_libraries,
         },
         "settings": {

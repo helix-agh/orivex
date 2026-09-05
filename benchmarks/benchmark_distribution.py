@@ -9,8 +9,8 @@ import timeit
 
 import numpy as np
 
-import bflacco
-from bflacco import LandscapeSample, compute
+import orivex
+from orivex import LandscapeSample, compute
 
 
 def benchmark(sample: LandscapeSample, selector: str, *, number: int = 200) -> dict[str, object]:
@@ -45,7 +45,7 @@ def main() -> None:
         "environment": {
             "python": platform.python_version(),
             "platform": platform.platform(),
-            "bflacco": bflacco.__version__,
+            "orivex": orivex.__version__,
             "numpy": np.__version__,
         },
         "records": records,

@@ -9,7 +9,7 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Generic, Literal, TypeAlias, TypeVar
 
-from bflacco.normalization import YNormalization, normalization_definition
+from orivex.normalization import YNormalization, normalization_definition
 
 FeatureScalar = TypeVar("FeatureScalar")
 BackendName: TypeAlias = Literal["numpy", "torch"]

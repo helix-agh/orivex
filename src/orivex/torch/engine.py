@@ -9,14 +9,14 @@ from types import MappingProxyType
 
 import torch
 
-from bflacco.engine import FeatureUnavailable
-from bflacco.normalization import YNormalization
-from bflacco.planner import IntermediateSpec, Planner
-from bflacco.registry import FeatureRegistry
-from bflacco.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
-from bflacco.specs import FeatureSpec
-from bflacco.torch.normalization import normalize_objectives
-from bflacco.torch.sample import TensorLandscapeSample
+from orivex.engine import FeatureUnavailable
+from orivex.normalization import YNormalization
+from orivex.planner import IntermediateSpec, Planner
+from orivex.registry import FeatureRegistry
+from orivex.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
+from orivex.specs import FeatureSpec
+from orivex.torch.normalization import normalize_objectives
+from orivex.torch.sample import TensorLandscapeSample
 
 IntermediateValue = object
 

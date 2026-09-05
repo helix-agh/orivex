@@ -4,7 +4,7 @@ This directory will contain portable, versioned fixtures generated from fixed sa
 Every fixture must record:
 
 - R and `flacco` versions;
-- bflacco feature-definition target;
+- orivex feature-definition target;
 - full feature parameters;
 - sample-generation method, seed, and bounds;
 - input checksum;

@@ -2,7 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from bflacco.torch import TensorLandscapeSample
+from orivex.torch import TensorLandscapeSample
 
 
 def valid_inputs(*, requires_grad: bool = False):

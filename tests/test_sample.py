@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from bflacco.sample import LandscapeSample, ObjectiveSense
+from orivex.sample import LandscapeSample, ObjectiveSense
 
 
 def test_sample_copies_and_freezes_caller_owned_arrays() -> None:

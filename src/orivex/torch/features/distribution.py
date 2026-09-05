@@ -7,13 +7,13 @@ from dataclasses import dataclass
 
 import torch
 
-from bflacco.capabilities import FeatureCapability
-from bflacco.engine import FeatureUnavailable
-from bflacco.features.distribution import KURTOSIS as NUMPY_KURTOSIS
-from bflacco.features.distribution import SKEWNESS as NUMPY_SKEWNESS
-from bflacco.planner import IntermediateSpec
-from bflacco.specs import InputRequirement
-from bflacco.torch.engine import (
+from orivex.capabilities import FeatureCapability
+from orivex.engine import FeatureUnavailable
+from orivex.features.distribution import KURTOSIS as NUMPY_KURTOSIS
+from orivex.features.distribution import SKEWNESS as NUMPY_SKEWNESS
+from orivex.planner import IntermediateSpec
+from orivex.specs import InputRequirement
+from orivex.torch.engine import (
     TensorComputationContext,
     TensorFeatureDefinition,
     TensorIntermediateDefinition,

@@ -1,6 +1,6 @@
-"""Compare pflacco and bflacco distribution-feature CPU and wall time.
+"""Compare pflacco and orivex distribution-feature CPU and wall time.
 
-The comparison is intentionally transparent about scope: bflacco currently computes the two
+The comparison is intentionally transparent about scope: orivex currently computes the two
 common outputs (skewness and kurtosis), whereas pflacco's public group call additionally computes
 KDE-based peak count. The benchmark therefore measures the user-facing cost of requesting those
 common outputs from each current API, not identical internal instruction streams.
@@ -22,8 +22,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-import bflacco
-from bflacco import LandscapeSample, compute
+import orivex
+from orivex import LandscapeSample, compute
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +38,7 @@ class Comparison:
     dimension: int
     mode: str
     pflacco: Timing
-    bflacco: Timing
+    orivex: Timing
     cpu_speedup: float
     wall_speedup: float
 
@@ -80,7 +80,7 @@ def common_values(result: dict[str, object]) -> tuple[float, float]:
     return float(result["ela_distr.skewness"]), float(result["ela_distr.kurtosis"])
 
 
-def bflacco_values(result: object) -> tuple[float, float]:
+def orivex_values(result: object) -> tuple[float, float]:
     outputs = result.values
     return (
         float(outputs["ela_distr.skewness"].value),
@@ -110,35 +110,35 @@ def compare_case(
     def pflacco_prepared() -> dict:
         return calculate_pflacco(frame, series)
 
-    def bflacco_prepared():
+    def orivex_prepared():
         return compute(sample, "ela_distr.*")
 
     def pflacco_end_to_end() -> dict:
         return calculate_pflacco(x, y)
 
-    def bflacco_end_to_end():
+    def orivex_end_to_end():
         return compute(LandscapeSample(x, y, lower, upper), "ela_distr.*")
 
     expected = common_values(pflacco_prepared())
-    actual = bflacco_values(bflacco_prepared())
+    actual = orivex_values(orivex_prepared())
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
 
     comparisons = []
-    for mode, pflacco_call, bflacco_call in (
-        ("prepared", pflacco_prepared, bflacco_prepared),
-        ("end_to_end", pflacco_end_to_end, bflacco_end_to_end),
+    for mode, pflacco_call, orivex_call in (
+        ("prepared", pflacco_prepared, orivex_prepared),
+        ("end_to_end", pflacco_end_to_end, orivex_end_to_end),
     ):
         pflacco_timing = measure(pflacco_call, warmups=warmups, repeats=repeats, calls=calls)
-        bflacco_timing = measure(bflacco_call, warmups=warmups, repeats=repeats, calls=calls)
+        orivex_timing = measure(orivex_call, warmups=warmups, repeats=repeats, calls=calls)
         comparisons.append(
             Comparison(
                 observations=observations,
                 dimension=dimension,
                 mode=mode,
                 pflacco=pflacco_timing,
-                bflacco=bflacco_timing,
-                cpu_speedup=pflacco_timing.cpu_seconds / bflacco_timing.cpu_seconds,
-                wall_speedup=pflacco_timing.wall_seconds / bflacco_timing.wall_seconds,
+                orivex=orivex_timing,
+                cpu_speedup=pflacco_timing.cpu_seconds / orivex_timing.cpu_seconds,
+                wall_speedup=pflacco_timing.wall_seconds / orivex_timing.wall_seconds,
             )
         )
     return comparisons
@@ -149,10 +149,10 @@ def print_table(comparisons: list[Comparison]) -> None:
         "n",
         "mode",
         "pflacco CPU s",
-        "bflacco CPU s",
+        "orivex CPU s",
         "CPU speedup",
         "pflacco wall s",
-        "bflacco wall s",
+        "orivex wall s",
     )
     print(" | ".join(header))
     print(" | ".join("---" for _ in header))
@@ -163,10 +163,10 @@ def print_table(comparisons: list[Comparison]) -> None:
                     str(item.observations),
                     item.mode,
                     f"{item.pflacco.cpu_seconds:.9f}",
-                    f"{item.bflacco.cpu_seconds:.9f}",
+                    f"{item.orivex.cpu_seconds:.9f}",
                     f"{item.cpu_speedup:.2f}x",
                     f"{item.pflacco.wall_seconds:.9f}",
-                    f"{item.bflacco.wall_seconds:.9f}",
+                    f"{item.orivex.wall_seconds:.9f}",
                 )
             )
         )
@@ -225,7 +225,7 @@ def main() -> None:
             "processor": platform.processor(),
             "numpy": np.__version__,
             "pandas": pd.__version__,
-            "bflacco": bflacco.__version__,
+            "orivex": orivex.__version__,
             "pflacco_source": source,
         },
         "settings": {
@@ -241,7 +241,7 @@ def main() -> None:
     }
 
     print("Outputs verified equal before timing: skewness, kurtosis")
-    print("pflacco additionally computes number_of_peaks; bflacco currently does not.\n")
+    print("pflacco additionally computes number_of_peaks; orivex currently does not.\n")
     print_table(comparisons)
     if args.json is not None:
         args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

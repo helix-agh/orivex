@@ -2,7 +2,7 @@ from typing import cast
 
 import pytest
 
-from bflacco.result import (
+from orivex.result import (
     BackendName,
     ComputationResult,
     DeviceType,

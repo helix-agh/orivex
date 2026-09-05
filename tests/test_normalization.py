@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from bflacco import LandscapeSample, compute
-from bflacco.normalization import normalize_objectives
+from orivex import LandscapeSample, compute
+from orivex.normalization import normalize_objectives
 
 
 def sample(y=None, *, sense="minimize"):
@@ -101,7 +101,7 @@ def test_invalid_normalization_is_rejected():
 
 
 def test_normalization_is_shared_once_per_request(monkeypatch):
-    from bflacco import engine
+    from orivex import engine
 
     calls = []
     original = engine.normalize_objectives

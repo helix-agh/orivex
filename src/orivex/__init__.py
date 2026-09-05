@@ -2,12 +2,12 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from bflacco.api import compute, list_features
-from bflacco.capabilities import AutogradSupport, FeatureCapability
-from bflacco.normalization import YNormalization
-from bflacco.result import BackendName, DeviceType, FloatingDType
-from bflacco.sample import LandscapeSample, ObjectiveSense, ObjectiveSenseName
-from bflacco.specs import (
+from orivex.api import compute, list_features
+from orivex.capabilities import AutogradSupport, FeatureCapability
+from orivex.normalization import YNormalization
+from orivex.result import BackendName, DeviceType, FloatingDType
+from orivex.sample import LandscapeSample, ObjectiveSense, ObjectiveSenseName
+from orivex.specs import (
     CostModel,
     CostTier,
     FeatureSpec,
@@ -20,7 +20,7 @@ from bflacco.specs import (
 )
 
 try:
-    __version__ = version("bflacco")
+    __version__ = version("orivex")
 except PackageNotFoundError:  # Running directly from a source checkout.
     __version__ = "0.0.0"
 

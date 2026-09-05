@@ -3,10 +3,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from bflacco import LandscapeSample
-from bflacco import compute as compute_numpy
-from bflacco.torch import TensorLandscapeSample, compute, list_capabilities
-from bflacco.torch.normalization import normalize_objectives
+from orivex import LandscapeSample
+from orivex import compute as compute_numpy
+from orivex.torch import TensorLandscapeSample, compute, list_capabilities
+from orivex.torch.normalization import normalize_objectives
 
 
 @pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])

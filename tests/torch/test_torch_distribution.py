@@ -3,11 +3,11 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from bflacco import LandscapeSample
-from bflacco import compute as compute_numpy
-from bflacco import list_features as list_numpy_features
-from bflacco.result import DeviceType, FeatureStatus
-from bflacco.torch import (
+from orivex import LandscapeSample
+from orivex import compute as compute_numpy
+from orivex import list_features as list_numpy_features
+from orivex.result import DeviceType, FeatureStatus
+from orivex.torch import (
     TensorLandscapeSample,
     UnsupportedFeatureError,
     compute,

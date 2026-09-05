@@ -7,7 +7,7 @@ def test_importing_base_package_does_not_import_torch() -> None:
         [
             sys.executable,
             "-c",
-            "import sys; import bflacco; assert 'torch' not in sys.modules",
+            "import sys; import orivex; assert 'torch' not in sys.modules",
         ],
         check=False,
         capture_output=True,

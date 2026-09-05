@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
-from bflacco.result import BackendName, DeviceType, FloatingDType
+from orivex.result import BackendName, DeviceType, FloatingDType
 
 AutogradSupport: TypeAlias = Literal["smooth", "piecewise", "none"]
 

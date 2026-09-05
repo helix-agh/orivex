@@ -1,4 +1,4 @@
-"""Compare pflacco and bflacco CPU and wall time for every implemented family.
+"""Compare pflacco and orivex CPU and wall time for every implemented family.
 
 Both implementations receive the same sphere samples. The comparison covers the common
 implemented outputs from ``ela_distr``, ``ela_meta``, ``ic``, and ``nbc``. IC uses the same
@@ -26,8 +26,8 @@ import scipy
 import sklearn
 from threadpoolctl import threadpool_info, threadpool_limits
 
-import bflacco
-from bflacco import LandscapeSample, compute
+import orivex
+from orivex import LandscapeSample, compute
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +43,7 @@ class Comparison:
     family: str
     mode: str
     pflacco: Timing
-    bflacco: Timing
+    orivex: Timing
     cpu_speedup: float
     wall_speedup: float
 
@@ -60,18 +60,18 @@ def measure_once(function: Callable[[], object], *, calls: int) -> Timing:
 
 def measure_pair(
     pflacco_call: Callable[[], object],
-    bflacco_call: Callable[[], object],
+    orivex_call: Callable[[], object],
     *,
     repeats: int,
     calls: int,
 ) -> tuple[Timing, Timing]:
     """Measure both implementations in alternating order to limit order bias."""
-    samples: dict[str, list[Timing]] = {"pflacco": [], "bflacco": []}
+    samples: dict[str, list[Timing]] = {"pflacco": [], "orivex": []}
     for repeat in range(repeats):
         ordered = (
-            (("pflacco", pflacco_call), ("bflacco", bflacco_call))
+            (("pflacco", pflacco_call), ("orivex", orivex_call))
             if repeat % 2 == 0
-            else (("bflacco", bflacco_call), ("pflacco", pflacco_call))
+            else (("orivex", orivex_call), ("pflacco", pflacco_call))
         )
         for name, function in ordered:
             samples[name].append(measure_once(function, calls=calls))
@@ -82,7 +82,7 @@ def measure_pair(
             statistics.median(item.wall_seconds for item in items),
         )
 
-    return median(samples["pflacco"]), median(samples["bflacco"])
+    return median(samples["pflacco"]), median(samples["orivex"])
 
 
 def load_pflacco_calculators(
@@ -114,11 +114,11 @@ def lexicographic_start(x: np.ndarray) -> int:
     return int(np.lexsort(keys)[0])
 
 
-def bflacco_values(result) -> dict[str, float]:
+def orivex_values(result) -> dict[str, float]:
     values = {}
     for name, output in result.values.items():
         if output.value is None:
-            message = f"bflacco returned {output.status.value} for {name}: {output.message}"
+            message = f"orivex returned {output.status.value} for {name}: {output.message}"
             raise AssertionError(message)
         values[name] = float(output.value)
     return values
@@ -126,10 +126,10 @@ def bflacco_values(result) -> dict[str, float]:
 
 def verified(
     pflacco_call: Callable[[], dict[str, object]],
-    bflacco_call: Callable[[], object],
+    orivex_call: Callable[[], object],
 ) -> None:
     legacy = pflacco_call()
-    current = bflacco_values(bflacco_call())
+    current = orivex_values(orivex_call())
     expected = {name: float(legacy[name]) for name in current}
     np.testing.assert_allclose(
         np.array(tuple(current.values())),
@@ -166,10 +166,10 @@ def compare_case(
     def pflacco_distribution_end_to_end() -> dict[str, object]:
         return calculate_distribution(x, y)
 
-    def bflacco_distribution_prepared():
+    def orivex_distribution_prepared():
         return compute(sample, "ela_distr.*")
 
-    def bflacco_distribution_end_to_end():
+    def orivex_distribution_end_to_end():
         return compute(LandscapeSample(x, y, lower, upper), "ela_distr.*")
 
     def pflacco_meta_prepared() -> dict[str, object]:
@@ -178,10 +178,10 @@ def compare_case(
     def pflacco_meta_end_to_end() -> dict[str, object]:
         return calculate_meta(x, y)
 
-    def bflacco_meta_prepared():
+    def orivex_meta_prepared():
         return compute(sample, "ela_meta.*")
 
-    def bflacco_meta_end_to_end():
+    def orivex_meta_end_to_end():
         return compute(LandscapeSample(x, y, lower, upper), "ela_meta.*")
 
     def pflacco_ic_prepared() -> dict[str, object]:
@@ -190,10 +190,10 @@ def compare_case(
     def pflacco_ic_end_to_end() -> dict[str, object]:
         return calculate_ic(x, y, ic_nn_start=start, seed=20260830)
 
-    def bflacco_ic_prepared():
+    def orivex_ic_prepared():
         return compute(sample, "ic.*")
 
-    def bflacco_ic_end_to_end():
+    def orivex_ic_end_to_end():
         return compute(LandscapeSample(x, y, lower, upper), "ic.*")
 
     def pflacco_nbc_prepared() -> dict[str, object]:
@@ -202,10 +202,10 @@ def compare_case(
     def pflacco_nbc_end_to_end() -> dict[str, object]:
         return calculate_nbc(x, y, dist_tie_breaker="first")
 
-    def bflacco_nbc_prepared():
+    def orivex_nbc_prepared():
         return compute(sample, "nbc.*")
 
-    def bflacco_nbc_end_to_end():
+    def orivex_nbc_end_to_end():
         return compute(LandscapeSample(x, y, lower, upper), "nbc.*")
 
     call_sets = (
@@ -213,29 +213,29 @@ def compare_case(
             "ela_distr",
             "prepared",
             pflacco_distribution_prepared,
-            bflacco_distribution_prepared,
+            orivex_distribution_prepared,
         ),
         (
             "ela_distr",
             "end_to_end",
             pflacco_distribution_end_to_end,
-            bflacco_distribution_end_to_end,
+            orivex_distribution_end_to_end,
         ),
-        ("ela_meta", "prepared", pflacco_meta_prepared, bflacco_meta_prepared),
-        ("ela_meta", "end_to_end", pflacco_meta_end_to_end, bflacco_meta_end_to_end),
-        ("ic", "prepared", pflacco_ic_prepared, bflacco_ic_prepared),
-        ("ic", "end_to_end", pflacco_ic_end_to_end, bflacco_ic_end_to_end),
-        ("nbc", "prepared", pflacco_nbc_prepared, bflacco_nbc_prepared),
-        ("nbc", "end_to_end", pflacco_nbc_end_to_end, bflacco_nbc_end_to_end),
+        ("ela_meta", "prepared", pflacco_meta_prepared, orivex_meta_prepared),
+        ("ela_meta", "end_to_end", pflacco_meta_end_to_end, orivex_meta_end_to_end),
+        ("ic", "prepared", pflacco_ic_prepared, orivex_ic_prepared),
+        ("ic", "end_to_end", pflacco_ic_end_to_end, orivex_ic_end_to_end),
+        ("nbc", "prepared", pflacco_nbc_prepared, orivex_nbc_prepared),
+        ("nbc", "end_to_end", pflacco_nbc_end_to_end, orivex_nbc_end_to_end),
     )
     comparisons = []
-    for family, mode, pflacco_call, bflacco_call in call_sets:
-        verified(pflacco_call, bflacco_call)
+    for family, mode, pflacco_call, orivex_call in call_sets:
+        verified(pflacco_call, orivex_call)
         pflacco_call()
-        bflacco_call()
-        pflacco_timing, bflacco_timing = measure_pair(
+        orivex_call()
+        pflacco_timing, orivex_timing = measure_pair(
             pflacco_call,
-            bflacco_call,
+            orivex_call,
             repeats=repeats,
             calls=calls,
         )
@@ -246,9 +246,9 @@ def compare_case(
                 family,
                 mode,
                 pflacco_timing,
-                bflacco_timing,
-                pflacco_timing.cpu_seconds / bflacco_timing.cpu_seconds,
-                pflacco_timing.wall_seconds / bflacco_timing.wall_seconds,
+                orivex_timing,
+                pflacco_timing.cpu_seconds / orivex_timing.cpu_seconds,
+                pflacco_timing.wall_seconds / orivex_timing.wall_seconds,
             )
         )
     return comparisons
@@ -261,10 +261,10 @@ def print_table(comparisons: list[Comparison]) -> None:
         "family",
         "mode",
         "pflacco CPU s",
-        "bflacco CPU s",
+        "orivex CPU s",
         "CPU speedup",
         "pflacco wall s",
-        "bflacco wall s",
+        "orivex wall s",
     )
     print(" | ".join(header))
     print(" | ".join("---" for _ in header))
@@ -277,10 +277,10 @@ def print_table(comparisons: list[Comparison]) -> None:
                     item.family,
                     item.mode,
                     f"{item.pflacco.cpu_seconds:.9f}",
-                    f"{item.bflacco.cpu_seconds:.9f}",
+                    f"{item.orivex.cpu_seconds:.9f}",
                     f"{item.cpu_speedup:.2f}x",
                     f"{item.pflacco.wall_seconds:.9f}",
-                    f"{item.bflacco.wall_seconds:.9f}",
+                    f"{item.orivex.wall_seconds:.9f}",
                 )
             )
         )
@@ -347,7 +347,7 @@ def main() -> None:
     report = {
         "scope": {
             "families": ["ela_distr", "ela_meta", "ic", "nbc"],
-            "bflacco_outputs": {
+            "orivex_outputs": {
                 "ela_distr": 2,
                 "ela_meta": 5,
                 "ic": 5,
@@ -378,7 +378,7 @@ def main() -> None:
             "scipy": scipy.__version__,
             "pandas": pd.__version__,
             "scikit_learn": sklearn.__version__,
-            "bflacco": bflacco.__version__,
+            "orivex": orivex.__version__,
             "pflacco_source": source,
         },
         "settings": {

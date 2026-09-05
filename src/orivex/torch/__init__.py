@@ -1,13 +1,13 @@
-"""Optional tensor-native bflacco backend."""
+"""Optional tensor-native orivex backend."""
 
-from bflacco.torch.api import (
+from orivex.torch.api import (
     UnsupportedFeatureDeviceError,
     UnsupportedFeatureError,
     compute,
     list_capabilities,
     list_features,
 )
-from bflacco.torch.sample import TensorLandscapeSample
+from orivex.torch.sample import TensorLandscapeSample
 
 __all__ = [
     "TensorLandscapeSample",

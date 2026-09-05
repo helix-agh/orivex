@@ -6,14 +6,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bflacco.engine import (
+from orivex.engine import (
     ComputationContext,
     FeatureDefinition,
     FeatureUnavailable,
     IntermediateDefinition,
 )
-from bflacco.planner import IntermediateSpec
-from bflacco.specs import (
+from orivex.planner import IntermediateSpec
+from orivex.specs import (
     CostModel,
     CostTier,
     FeatureSpec,

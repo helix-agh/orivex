@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatchcase
 
-from bflacco.specs import FeatureSpec
+from orivex.specs import FeatureSpec
 
 
 class RegistryError(ValueError):

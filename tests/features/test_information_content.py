@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 from scipy.spatial import KDTree
 
-from bflacco import LandscapeSample, compute, list_features
-from bflacco.engine import ComputationContext
-from bflacco.features.information_content import (
+from orivex import LandscapeSample, compute, list_features
+from orivex.engine import ComputationContext
+from orivex.features.information_content import (
     EPSILON,
     NEIGHBOURHOOD,
     SlopeSequence,
@@ -17,7 +17,7 @@ from bflacco.features.information_content import (
     slope_sequence,
     symbol_schedule,
 )
-from bflacco.result import FeatureStatus
+from orivex.result import FeatureStatus
 
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "r_flacco"
 FEATURE_NAMES = (

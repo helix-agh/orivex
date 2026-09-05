@@ -9,12 +9,12 @@ from types import MappingProxyType
 
 import numpy as np
 
-from bflacco.normalization import YNormalization, normalize_objectives
-from bflacco.planner import IntermediateSpec, Planner
-from bflacco.registry import FeatureRegistry
-from bflacco.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
-from bflacco.sample import LandscapeSample
-from bflacco.specs import FeatureSpec, InputRequirement
+from orivex.normalization import YNormalization, normalize_objectives
+from orivex.planner import IntermediateSpec, Planner
+from orivex.registry import FeatureRegistry
+from orivex.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
+from orivex.sample import LandscapeSample
+from orivex.specs import FeatureSpec, InputRequirement
 
 IntermediateValue = object
 

@@ -37,7 +37,7 @@ Increase `--calls` and `--repeats` for publication-quality runs. The defaults fa
 stable local comparison without making the script slow to use during development.
 
 The scope is not an identical group comparison yet: pflacco necessarily calculates KDE peak count,
-while bflacco currently implements only individually selectable skewness and kurtosis. The report
+while orivex currently implements only individually selectable skewness and kurtosis. The report
 records this difference so the resulting speedup is not misrepresented as a same-instruction-kernel
 comparison.
 
