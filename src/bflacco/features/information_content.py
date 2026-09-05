@@ -78,7 +78,7 @@ def _aggregate_duplicate_points(context: ComputationContext) -> tuple[np.ndarray
         return_counts=True,
     )
     y_sums = np.zeros(x.shape[0], dtype=np.float64)
-    np.add.at(y_sums, inverse, context.sample.minimization_y)
+    np.add.at(y_sums, inverse, context.y)
     return x, y_sums / counts
 
 

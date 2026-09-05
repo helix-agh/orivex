@@ -76,7 +76,7 @@ def _predictors(context: TensorComputationContext, name: str) -> PredictorMatrix
 
 def _fit(context: TensorComputationContext, predictor_name: str) -> RegressionFit:
     predictors = _predictors(context, predictor_name).values
-    y = context.sample.minimization_y
+    y = context.y
     observations = y.numel()
     columns = predictors.shape[1] + 1
     design = torch.cat((torch.ones_like(y).unsqueeze(1), predictors), dim=1)

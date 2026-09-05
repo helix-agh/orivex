@@ -4,6 +4,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from bflacco.api import compute, list_features
 from bflacco.capabilities import AutogradSupport, FeatureCapability
+from bflacco.normalization import YNormalization
 from bflacco.result import BackendName, DeviceType, FloatingDType
 from bflacco.sample import LandscapeSample, ObjectiveSense, ObjectiveSenseName
 from bflacco.specs import (
@@ -41,6 +42,7 @@ __all__ = [
     "ObjectiveSenseName",
     "Reference",
     "Transformation",
+    "YNormalization",
     "__version__",
     "compute",
     "list_features",

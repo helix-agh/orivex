@@ -127,7 +127,9 @@ def test_distribution_features_match_r_flacco_1_8(case: str) -> None:
         "values"
     ]
 
-    result = compute(LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "ela_distr.*")
+    result = compute(
+        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "ela_distr.*", y_normalization="none"
+    )
 
     assert result.values["ela_distr.skewness"].value == pytest.approx(
         expected["ela_distr.skewness"], rel=1e-13, abs=1e-13

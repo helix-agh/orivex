@@ -9,6 +9,7 @@ from types import MappingProxyType
 
 import numpy as np
 
+from bflacco.normalization import YNormalization, normalize_objectives
 from bflacco.planner import IntermediateSpec, Planner
 from bflacco.registry import FeatureRegistry
 from bflacco.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
@@ -28,6 +29,12 @@ class ComputationContext:
     intermediates: Mapping[str, IntermediateValue]
     rng: np.random.Generator | None
     workers: int = 1
+    objective_y: np.ndarray | None = None
+
+    @property
+    def y(self) -> np.ndarray:
+        """Canonical objectives after the computation's declared preprocessing."""
+        return self.sample.minimization_y if self.objective_y is None else self.objective_y
 
     def intermediate(self, name: str) -> IntermediateValue:
         try:
@@ -85,6 +92,7 @@ class Engine:
         *,
         rng: np.random.Generator | None = None,
         workers: int = 1,
+        y_normalization: YNormalization = "minmax",
     ) -> ComputationResult:
         if workers == 0 or workers < -1:
             raise ValueError("workers must be -1 or a positive integer")
@@ -93,14 +101,16 @@ class Engine:
         if InputRequirement.RNG in plan.requirements and rng is None:
             raise ValueError("the requested feature plan requires an explicit numpy Generator")
 
+        objective_y, constant = normalize_objectives(sample.minimization_y, y_normalization)
+
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
-            context = ComputationContext(sample, MappingProxyType(cache), rng, workers)
+            context = ComputationContext(sample, MappingProxyType(cache), rng, workers, objective_y)
             cache[intermediate.name] = self._intermediate_definitions[intermediate.name].calculate(
                 context
             )
 
-        context = ComputationContext(sample, MappingProxyType(cache), rng, workers)
+        context = ComputationContext(sample, MappingProxyType(cache), rng, workers, objective_y)
         values: dict[str, FeatureValue] = {}
         for spec in plan.features:
             definition = self._feature_definitions[spec.name]
@@ -128,5 +138,7 @@ class Engine:
             runtime_seconds=time.perf_counter() - started,
             additional_objective_evaluations=0,
             workers=workers,
+            y_normalization=y_normalization,
+            constant_objective=constant,
         )
         return ComputationResult(values, metadata)

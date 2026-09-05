@@ -27,7 +27,7 @@ class CenteredObjectives:
 
 
 def centered_objectives(context: TensorComputationContext) -> CenteredObjectives:
-    y = context.sample.minimization_y
+    y = context.y
     return CenteredObjectives(y.shape[-1], y - torch.mean(y, dim=-1, keepdim=True))
 
 

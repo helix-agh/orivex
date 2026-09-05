@@ -140,7 +140,8 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
         "ela_meta.quad_w_interact.adj_r2",
     )
     assert all(capability.backend == "torch" for capability in capabilities)
-    assert all(capability.autograd == "smooth" for capability in capabilities)
+    assert all(capability.autograd == "piecewise" for capability in capabilities)
+    assert all(item.autograd == "smooth" for item in list_capabilities(y_normalization="none"))
     assert all(spec is numpy_specs[spec.name] for spec in specs)
 
 

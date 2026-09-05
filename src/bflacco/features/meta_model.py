@@ -87,7 +87,7 @@ def _predictors(context: ComputationContext, name: str) -> PredictorMatrix:
 
 def _fit(context: ComputationContext, predictor_name: str) -> RegressionFit:
     predictors = _predictors(context, predictor_name).values
-    y = context.sample.minimization_y
+    y = context.y
     design = np.empty((y.size, predictors.shape[1] + 1), dtype=np.float64)
     design[:, 0] = 1.0
     design[:, 1:] = predictors

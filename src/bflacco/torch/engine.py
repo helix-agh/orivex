@@ -10,10 +10,12 @@ from types import MappingProxyType
 import torch
 
 from bflacco.engine import FeatureUnavailable
+from bflacco.normalization import YNormalization
 from bflacco.planner import IntermediateSpec, Planner
 from bflacco.registry import FeatureRegistry
 from bflacco.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
 from bflacco.specs import FeatureSpec
+from bflacco.torch.normalization import normalize_objectives
 from bflacco.torch.sample import TensorLandscapeSample
 
 IntermediateValue = object
@@ -23,6 +25,11 @@ IntermediateValue = object
 class TensorComputationContext:
     sample: TensorLandscapeSample
     intermediates: Mapping[str, IntermediateValue]
+    objective_y: torch.Tensor | None = None
+
+    @property
+    def y(self) -> torch.Tensor:
+        return self.sample.minimization_y if self.objective_y is None else self.objective_y
 
     def intermediate(self, name: str) -> IntermediateValue:
         try:
@@ -76,18 +83,21 @@ class TensorEngine:
         self,
         sample: TensorLandscapeSample,
         features: str | tuple[str, ...] | list[str],
+        *,
+        y_normalization: YNormalization = "minmax",
     ) -> ComputationResult[torch.Tensor]:
         sample.validate_unchanged()
         _synchronize(sample.x.device)
         started = time.perf_counter()
         plan = self.planner.plan(features)
+        objective_y, constant = normalize_objectives(sample.minimization_y, y_normalization)
 
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
-            context = TensorComputationContext(sample, MappingProxyType(cache))
+            context = TensorComputationContext(sample, MappingProxyType(cache), objective_y)
             cache[intermediate.name] = self._intermediates[intermediate.name].calculate(context)
 
-        context = TensorComputationContext(sample, MappingProxyType(cache))
+        context = TensorComputationContext(sample, MappingProxyType(cache), objective_y)
         values: dict[str, FeatureValue[torch.Tensor]] = {}
         for spec in plan.features:
             try:
@@ -116,5 +126,7 @@ class TensorEngine:
             device=sample.device_type,
             device_index=sample.device_index,
             dtype=sample.dtype_name,
+            y_normalization=y_normalization,
+            constant_objective=constant,
         )
         return ComputationResult(values, metadata)

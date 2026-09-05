@@ -107,8 +107,12 @@ def test_duplicate_points_are_aggregated_by_mean_objective() -> None:
     unique_x = np.arange(4.0).reshape(-1, 1)
     aggregated_y = np.array([0.0, 2.0, 0.0, 3.0])
 
-    duplicated = numeric_values(compute(sample_for(duplicated_x, duplicated_y), "ic.*"))
-    aggregated = numeric_values(compute(sample_for(unique_x, aggregated_y), "ic.*"))
+    duplicated = numeric_values(
+        compute(sample_for(duplicated_x, duplicated_y), "ic.*", y_normalization="none")
+    )
+    aggregated = numeric_values(
+        compute(sample_for(unique_x, aggregated_y), "ic.*", y_normalization="none")
+    )
 
     assert duplicated == pytest.approx(aggregated)
 
@@ -156,7 +160,9 @@ def test_information_content_matches_controlled_r_flacco_1_8(case: str) -> None:
         "values"
     ]
 
-    result = compute(LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "ic.*")
+    result = compute(
+        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "ic.*", y_normalization="none"
+    )
 
     for name, r_name in R_NAMES.items():
         assert result.values[name].value == pytest.approx(expected[r_name], rel=2e-13, abs=2e-13)

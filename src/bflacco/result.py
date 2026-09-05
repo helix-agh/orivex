@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from types import MappingProxyType
 from typing import Generic, Literal, TypeAlias, TypeVar
+
+from bflacco.normalization import YNormalization, normalization_definition
 
 FeatureScalar = TypeVar("FeatureScalar")
 BackendName: TypeAlias = Literal["numpy", "torch"]
@@ -42,8 +45,29 @@ class ExecutionMetadata:
     device: DeviceType = "cpu"
     device_index: int | None = None
     dtype: FloatingDType = "float64"
+    y_normalization: YNormalization = "none"
+    constant_objective: bool = False
+
+    @property
+    def y_normalization_definition(self) -> str:
+        return normalization_definition(self.y_normalization)
+
+    @property
+    def preprocessing_fingerprint(self) -> str:
+        """Cache-key component identifying raw input, backend, dtype, and preprocessing.
+
+        A full result cache must additionally include feature definitions and execution options.
+        """
+        identity = (
+            self.sample_fingerprint,
+            self.backend,
+            self.dtype,
+            self.y_normalization_definition,
+        )
+        return hashlib.sha256("\0".join(identity).encode("utf-8")).hexdigest()
 
     def __post_init__(self) -> None:
+        normalization_definition(self.y_normalization)
         if self.runtime_seconds < 0:
             raise ValueError("runtime_seconds must not be negative")
         if self.additional_objective_evaluations < 0:

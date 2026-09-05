@@ -101,7 +101,7 @@ for name, item in result.values.items():
 ```text
 ela_distr.kurtosis       -0.211763  [ok]
 ela_distr.skewness       0.139713  [ok]
-ic.h_max                 0.841578  [ok]
+ic.h_max                 0.839520  [ok]
 nbc.nn_nb.mean_ratio     0.570166  [ok]
 ```
 
@@ -109,6 +109,40 @@ nbc.nn_nb.mean_ratio     0.570166  [ok]
 one-dimensional with matching length, all values must be finite, every lower bound must be
 strictly below its upper bound, and all observations must lie inside the box. The sample is
 immutable and its arrays are read-only, so a sample can be reused across many `compute` calls.
+
+### Objective normalization
+
+`compute` now defaults to `y_normalization="minmax"` in both backends. It first converts the
+objective to minimization convention, then applies `(y - min(y)) / (max(y) - min(y))` once per
+request. `LandscapeSample.y` and `sample.minimization_y` retain the original observations and
+their raw canonical values. Choose preprocessing explicitly when reproducing older results:
+
+```python
+compute(sample, "ela_meta.*")  # min-max, the default
+compute(sample, "ela_meta.*", y_normalization="none")  # raw canonical objectives
+compute(sample, "ela_meta.*", y_normalization="zscore")  # population standard deviation
+```
+
+Min-max and z-score preprocessing remove positive objective-scale and shift dependence on the
+same finite nonconstant observations, up to floating-point accuracy. They do not remove
+variation between sampling designs. Constant objectives map to zero in normalized modes;
+features requiring variation still return `invalid`. No epsilon is added to the denominator.
+
+This default changes intercepts and IC thresholds relative to earlier releases. `FeatureSpec`
+continues to describe the underlying formula on its input objectives; preprocessing and the
+formula definition together identify the computed quantity. Normalization precedes any
+family-specific duplicate aggregation. R/pflacco raw comparisons explicitly use `"none"`.
+
+Metadata includes `y_normalization`, `y_normalization_definition`, `constant_objective`, and
+`preprocessing_fingerprint`. Use the preprocessing fingerprint together with feature definitions
+and execution settings for result caching. The raw sample fingerprint alone does not identify
+the normalization mode.
+
+Torch preprocessing preserves dtype, device, and gradients. Min-max is piecewise differentiable
+at changes in the extrema; `bflacco.torch.list_capabilities()` conservatively reports the default
+pipeline as `piecewise`. Pass `y_normalization="none"` or `"zscore"` to capability discovery to
+inspect those modes. This is objective preprocessing, separate from scaling a feature vector
+for a downstream machine-learning model.
 
 ### Selecting individual features avoids unrelated work
 
@@ -147,8 +181,8 @@ Using all CPUs reduces IC wall latency on sufficiently large samples, but increa
 consumption and can be slower for small samples. Keep the default when parallelizing across many
 landscapes.
 
-The fingerprint identifies the exact numerical input, which makes it usable as a cache key or as
-provenance stored next to an experiment's results.
+The sample fingerprint identifies the raw numerical input for provenance. Use the preprocessing
+fingerprint and feature definitions when identifying cached results.
 
 ### Maximization problems
 
@@ -262,6 +296,10 @@ uv run pytest -k nearest_better                      # one feature family
 uv run pytest tests/verification                     # metamorphic and differential checks
 uv run pytest --cov=bflacco --cov-report=term-missing
 ```
+
+The stability-experiment regression tests additionally require the benchmark extra:
+`uv run --extra dev --extra benchmark pytest`. CI includes these dependencies; without them,
+that test module is skipped.
 
 The R differential fixtures are checked in. Regenerate them only when the recorded inputs or the
 reference computation change, which requires R with the `flacco` and `jsonlite` packages:

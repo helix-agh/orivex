@@ -110,7 +110,9 @@ def test_nbc_matches_r_flacco_1_8(case: str) -> None:
         "values"
     ]
 
-    result = compute(LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "nbc.*")
+    result = compute(
+        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "nbc.*", y_normalization="none"
+    )
 
     for name in FEATURE_NAMES:
         assert result.values[name].value == pytest.approx(expected[name], rel=2e-13, abs=2e-13)

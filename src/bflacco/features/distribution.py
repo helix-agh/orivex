@@ -38,7 +38,7 @@ class CenteredObjectives:
 
 
 def centered_objectives(context: ComputationContext) -> CenteredObjectives:
-    y = context.sample.minimization_y
+    y = context.y
     centered = y - np.mean(y)
     centered.flags.writeable = False
     return CenteredObjectives(observations=y.size, values=centered)

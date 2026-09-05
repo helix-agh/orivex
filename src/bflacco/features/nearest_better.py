@@ -51,7 +51,7 @@ class NearestBetterGraph:
 
 def nearest_better_graph(context: ComputationContext) -> NearestBetterGraph:
     x = context.sample.x
-    y = context.sample.minimization_y
+    y = context.y
     observations = x.shape[0]
     if observations < 2:
         empty = np.empty(0, dtype=np.float64)

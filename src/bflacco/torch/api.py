@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import torch
 
 from bflacco.api import DEFAULT_ENGINE as NUMPY_ENGINE
 from bflacco.capabilities import FeatureCapability
+from bflacco.normalization import YNormalization, normalization_definition
 from bflacco.result import ComputationResult
 from bflacco.specs import FeatureSpec
 from bflacco.torch.engine import TensorEngine
@@ -48,8 +51,15 @@ def _supported_feature_names(
 def compute(
     sample: TensorLandscapeSample,
     features: str | tuple[str, ...] | list[str],
+    *,
+    y_normalization: YNormalization = "minmax",
 ) -> ComputationResult[torch.Tensor]:
-    """Compute selected tensor-native features without detaching their outputs."""
+    """Compute tensor features with min-max objective normalization by default.
+
+    ``y_normalization="none"`` preserves raw canonical objectives; ``"zscore"`` uses
+    population standard deviation. Min-max preprocessing is piecewise differentiable.
+    All modes preserve the sample's tensors, dtype, device, and autograd history.
+    """
 
     if not isinstance(sample, TensorLandscapeSample):
         raise TypeError("sample must be a bflacco.torch.TensorLandscapeSample")
@@ -63,7 +73,7 @@ def compute(
         raise UnsupportedFeatureDeviceError(
             f"features are not available on device type {sample.device_type!r}: {joined}"
         )
-    return DEFAULT_ENGINE.compute(sample, feature_names)
+    return DEFAULT_ENGINE.compute(sample, feature_names, y_normalization=y_normalization)
 
 
 def list_features() -> tuple[FeatureSpec, ...]:
@@ -72,7 +82,24 @@ def list_features() -> tuple[FeatureSpec, ...]:
     return tuple(DEFAULT_ENGINE.registry.get(name) for name in DEFAULT_ENGINE.registry.names())
 
 
-def list_capabilities() -> tuple[FeatureCapability, ...]:
-    """Return implementation-specific device, dtype, and autograd declarations."""
+def list_capabilities(
+    *,
+    y_normalization: YNormalization = "minmax",
+) -> tuple[FeatureCapability, ...]:
+    """Return capabilities including a conservative preprocessing autograd guarantee."""
 
-    return tuple(sorted(CAPABILITIES, key=lambda capability: capability.feature_name))
+    normalization_definition(y_normalization)
+    capabilities = CAPABILITIES
+    if y_normalization == "minmax":
+        capabilities = tuple(
+            replace(
+                item,
+                autograd="piecewise",
+                notes=(
+                    *item.notes,
+                    "Min-max preprocessing is piecewise differentiable at extrema.",
+                ),
+            )
+            for item in capabilities
+        )
+    return tuple(sorted(capabilities, key=lambda capability: capability.feature_name))
