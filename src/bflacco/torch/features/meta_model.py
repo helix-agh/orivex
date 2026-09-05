@@ -79,7 +79,17 @@ def _fit(context: TensorComputationContext, predictor_name: str) -> RegressionFi
     y = context.y
     observations = y.numel()
     columns = predictors.shape[1] + 1
-    design = torch.cat((torch.ones_like(y).unsqueeze(1), predictors), dim=1)
+
+    # Fit on standardized predictor columns for conditioning, then map the coefficients back to the
+    # specified raw coordinates. The means and scales are detached: standardizing by an
+    # intercept-preserving affine transform leaves the column space -- and therefore the value and
+    # its gradient -- unchanged, so holding them constant keeps a large coordinate offset from being
+    # mistaken for rank deficiency without perturbing autograd.
+    means = predictors.detach().mean(dim=0, keepdim=True)
+    scales = predictors.detach().std(dim=0, unbiased=False, keepdim=True)
+    scales = torch.where(scales > 0, scales, torch.ones_like(scales))
+    standardized = (predictors - means) / scales
+    design = torch.cat((torch.ones_like(y).unsqueeze(1), standardized), dim=1)
 
     # Rank determines whether any feature consuming this fit is defined. It is intentionally
     # outside the autograd graph: rank is discrete, while the fit is smooth wherever rank is
@@ -90,8 +100,11 @@ def _fit(context: TensorComputationContext, predictor_name: str) -> RegressionFi
         coefficients = torch.zeros(columns, dtype=y.dtype, device=y.device)
         residuals = y
     else:
-        coefficients = torch.linalg.lstsq(design, y, driver="gels").solution
-        residuals = y - design @ coefficients
+        standardized_coefficients = torch.linalg.lstsq(design, y, driver="gels").solution
+        residuals = y - design @ standardized_coefficients
+        slopes = standardized_coefficients[1:] / scales.squeeze(0)
+        intercept = standardized_coefficients[0] - torch.dot(slopes, means.squeeze(0))
+        coefficients = torch.cat((intercept.unsqueeze(0), slopes))
 
     centered_y = y - torch.mean(y)
     return RegressionFit(

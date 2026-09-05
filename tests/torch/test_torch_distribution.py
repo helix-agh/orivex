@@ -81,6 +81,33 @@ def test_undefined_features_have_structured_status(feature, y, message) -> None:
     assert message in output.message
 
 
+@pytest.mark.parametrize("constant", [1e-150, 1e150, -3.0])
+def test_constant_objective_with_nonzero_magnitude_is_invalid(constant: float) -> None:
+    y = [constant] * 7
+
+    for feature in ("ela_distr.skewness", "ela_distr.kurtosis"):
+        output = compute(tensor_sample(y), feature, y_normalization="none").values[feature]
+        assert output.status is FeatureStatus.INVALID
+        assert output.message is not None
+        assert "constant" in output.message
+
+
+@pytest.mark.parametrize("scale", [1e80, 1e200, 1e-120, 1e-200])
+def test_distribution_features_are_stable_at_extreme_objective_scales(scale: float) -> None:
+    base = [1.0, 2.0, 3.0, 4.0, 8.0]
+    expected = compute(tensor_sample(base), "ela_distr.*", y_normalization="none")
+
+    scaled = [value * scale for value in base]
+    result = compute(tensor_sample(scaled), "ela_distr.*", y_normalization="none")
+
+    for name, item in result.values.items():
+        assert item.status is FeatureStatus.OK
+        assert item.value is not None
+        assert item.value.item() == pytest.approx(
+            expected.values[name].value.item(), rel=1e-10, abs=1e-12
+        )
+
+
 @pytest.mark.parametrize("feature", ["ela_distr.skewness", "ela_distr.kurtosis"])
 def test_distribution_features_pass_gradcheck(feature: str) -> None:
     x = torch.linspace(0.0, 1.0, 6, dtype=torch.float64).reshape(-1, 1)

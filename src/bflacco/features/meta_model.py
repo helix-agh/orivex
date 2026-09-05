@@ -88,12 +88,28 @@ def _predictors(context: ComputationContext, name: str) -> PredictorMatrix:
 def _fit(context: ComputationContext, predictor_name: str) -> RegressionFit:
     predictors = _predictors(context, predictor_name).values
     y = context.y
-    design = np.empty((y.size, predictors.shape[1] + 1), dtype=np.float64)
+    columns = predictors.shape[1]
+
+    # Fit on standardized predictor columns for conditioning, then map the coefficients back to the
+    # specified raw coordinates. Centering and scaling each column by an intercept-preserving affine
+    # transform leaves the column space -- and therefore the fitted values, residuals, and rank --
+    # unchanged, while keeping singular values comparable so a large coordinate offset is no longer
+    # mistaken for rank deficiency.
+    means = predictors.mean(axis=0)
+    scales = np.std(predictors, axis=0)
+    scales = np.where(scales > 0.0, scales, 1.0)
+    design = np.empty((y.size, columns + 1), dtype=np.float64)
     design[:, 0] = 1.0
-    design[:, 1:] = predictors
-    coefficients, _, rank, _ = np.linalg.lstsq(design, y, rcond=None)
-    fitted = design @ coefficients
+    design[:, 1:] = (predictors - means) / scales
+    standardized_coefficients, _, rank, _ = np.linalg.lstsq(design, y, rcond=None)
+    fitted = design @ standardized_coefficients
     residuals = y - fitted
+
+    slopes = standardized_coefficients[1:] / scales
+    coefficients = np.empty(columns + 1, dtype=np.float64)
+    coefficients[0] = standardized_coefficients[0] - float(slopes @ means)
+    coefficients[1:] = slopes
+
     centered_y = y - np.mean(y)
     coefficients.flags.writeable = False
     fitted.flags.writeable = False

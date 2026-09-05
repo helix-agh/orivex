@@ -23,6 +23,28 @@ class FeatureUnavailable(ValueError):
     """A feature is mathematically undefined for an otherwise valid sample."""
 
 
+# Numerical failures that are expected for otherwise valid samples (overflow, underflow, division
+# by an underflowed quantity, singular designs). These are isolated per feature as INVALID results.
+# Programming errors -- TypeError, KeyError, IndexError, AttributeError, and the like -- are not
+# listed and therefore still propagate so that bugs remain distinguishable from numerical failures.
+EXPECTED_NUMERICAL_ERRORS: tuple[type[Exception], ...] = (
+    FeatureUnavailable,
+    ArithmeticError,
+    np.linalg.LinAlgError,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _IntermediateFailure:
+    """Marks an intermediate that raised an expected numerical failure.
+
+    Stored in place of a value so that features depending on it (directly or transitively) surface
+    the same failure as an INVALID status instead of terminating the whole request.
+    """
+
+    message: str
+
+
 @dataclass(frozen=True, slots=True)
 class ComputationContext:
     sample: LandscapeSample
@@ -38,9 +60,12 @@ class ComputationContext:
 
     def intermediate(self, name: str) -> IntermediateValue:
         try:
-            return self.intermediates[name]
+            value = self.intermediates[name]
         except KeyError as error:
             raise RuntimeError(f"intermediate was not planned: {name}") from error
+        if isinstance(value, _IntermediateFailure):
+            raise FeatureUnavailable(value.message)
+        return value
 
 
 FeatureCalculator = Callable[[ComputationContext], float | int]
@@ -106,9 +131,12 @@ class Engine:
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
             context = ComputationContext(sample, MappingProxyType(cache), rng, workers, objective_y)
-            cache[intermediate.name] = self._intermediate_definitions[intermediate.name].calculate(
-                context
-            )
+            try:
+                cache[intermediate.name] = self._intermediate_definitions[
+                    intermediate.name
+                ].calculate(context)
+            except EXPECTED_NUMERICAL_ERRORS as error:
+                cache[intermediate.name] = _IntermediateFailure(str(error))
 
         context = ComputationContext(sample, MappingProxyType(cache), rng, workers, objective_y)
         values: dict[str, FeatureValue] = {}
@@ -123,7 +151,7 @@ class Engine:
                     status=FeatureStatus.OK,
                     definition=spec.definition,
                 )
-            except FeatureUnavailable as error:
+            except EXPECTED_NUMERICAL_ERRORS as error:
                 values[spec.name] = FeatureValue(
                     value=None,
                     status=FeatureStatus.INVALID,
