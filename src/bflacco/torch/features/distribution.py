@@ -24,11 +24,27 @@ from bflacco.torch.engine import (
 class CenteredObjectives:
     observations: int
     values: torch.Tensor
+    scale: torch.Tensor
 
 
 def centered_objectives(context: TensorComputationContext) -> CenteredObjectives:
+    """Mean-centered objectives rescaled to unit maximum magnitude.
+
+    The deviations are divided by a *detached* ``max|y - mean|`` so the moment sums stay bounded at
+    any finite objective scale. The scale cancels analytically, so detaching it keeps the feature's
+    value and its gradient with respect to ``y`` unchanged while avoiding overflow of the raw
+    powers. ``scale`` is ``0`` exactly for a constant objective.
+    """
     y = context.y
-    return CenteredObjectives(y.shape[-1], y - torch.mean(y, dim=-1, keepdim=True))
+    deviations = y - torch.mean(y, dim=-1, keepdim=True)
+    # Constancy is decided on the objectives directly: a genuinely constant objective can still
+    # acquire tiny nonzero deviations through mean rounding, and rescaling would otherwise amplify
+    # that noise into apparently valid moments.
+    constant = torch.amax(y, dim=-1, keepdim=True) == torch.amin(y, dim=-1, keepdim=True)
+    raw_scale = torch.amax(torch.abs(deviations), dim=-1, keepdim=True)
+    scale = torch.where(constant, torch.zeros_like(raw_scale), raw_scale)
+    divisor = torch.where(scale > 0, scale, torch.ones_like(scale)).detach()
+    return CenteredObjectives(y.shape[-1], deviations / divisor, scale.detach())
 
 
 def _centered(context: TensorComputationContext) -> CenteredObjectives:
@@ -68,7 +84,7 @@ def skewness_type3(context: TensorComputationContext) -> torch.Tensor:
     third = _sum(context, "y.sum3")
     if centered.observations < 3:
         raise FeatureUnavailable("type-3 skewness requires at least 3 observations")
-    if _is_zero(second):
+    if _is_zero(centered.scale):
         raise FeatureUnavailable("skewness is undefined for constant objective values")
     n = centered.observations
     type1 = math.sqrt(n) * third / second**1.5
@@ -81,7 +97,7 @@ def kurtosis_type3(context: TensorComputationContext) -> torch.Tensor:
     fourth = _sum(context, "y.sum4")
     if centered.observations < 4:
         raise FeatureUnavailable("type-3 kurtosis requires at least 4 observations")
-    if _is_zero(second):
+    if _is_zero(centered.scale):
         raise FeatureUnavailable("kurtosis is undefined for constant objective values")
     n = centered.observations
     ratio = n * fourth / second**2

@@ -73,6 +73,31 @@ def test_distribution_features_are_translation_and_positive_scale_invariant(
     assert transformed == pytest.approx(original, rel=1e-8, abs=1e-12)
 
 
+@pytest.mark.parametrize("constant", [1e-150, 1e150, -3.0])
+def test_constant_objective_with_nonzero_magnitude_is_invalid(constant: float) -> None:
+    # A genuinely constant objective must stay INVALID even when mean rounding leaves tiny nonzero
+    # deviations that the unit rescaling would otherwise amplify into apparently valid moments.
+    y = np.full(7, constant)
+
+    for feature in ("ela_distr.skewness", "ela_distr.kurtosis"):
+        output = compute(sample_for(y), feature, y_normalization="none").values[feature]
+        assert output.status is FeatureStatus.INVALID
+        assert "constant" in output.message
+
+
+@pytest.mark.parametrize("scale", [1e80, 1e120, 1e200, 1e300, 1e-120, 1e-200])
+def test_distribution_features_are_stable_at_extreme_objective_scales(scale: float) -> None:
+    # Raw moment powers overflowed (kurtosis at 1e80, skewness at 1e120) or divided by an
+    # underflowed second moment (1e-150); scale-stable moments must recover the true value instead.
+    y = np.array([1.0, 2.0, 3.0, 4.0, 8.0])
+    expected = values(compute(sample_for(y), "ela_distr.*", y_normalization="none"))
+
+    result = compute(sample_for(scale * y), "ela_distr.*", y_normalization="none")
+
+    assert all(item.status is FeatureStatus.OK for item in result.values.values())
+    assert values(result) == pytest.approx(expected, rel=1e-10, abs=1e-12)
+
+
 def test_distribution_features_are_row_permutation_invariant() -> None:
     y = np.array([-4.0, -1.0, 0.0, 2.0, 8.0, 9.0])
     permutation = np.array([5, 2, 0, 4, 1, 3])

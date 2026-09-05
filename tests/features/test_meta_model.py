@@ -201,6 +201,48 @@ def test_row_and_variable_permutations_preserve_selected_features() -> None:
     assert permuted == pytest.approx(original, rel=1e-11, abs=1e-11)
 
 
+def test_full_rank_quadratic_survives_large_coordinate_offset() -> None:
+    # Uncentered raw polynomial columns made a translated full-rank sphere look rank deficient.
+    # Standardizing the design before the fit must keep the exact quadratic fit at a large offset.
+    rng = np.random.Generator(np.random.PCG64(1010))
+    x = rng.uniform(-5.0, 5.0, size=(100, 2))
+    y = np.sum(x * x, axis=1)
+    offset = 1e6
+
+    base = compute(
+        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]),
+        "ela_meta.quad_simple.adj_r2",
+        y_normalization="none",
+    ).values["ela_meta.quad_simple.adj_r2"]
+    translated = compute(
+        LandscapeSample(
+            x + offset, y, [-5.0 + offset, -5.0 + offset], [5.0 + offset, 5.0 + offset]
+        ),
+        "ela_meta.quad_simple.adj_r2",
+        y_normalization="none",
+    ).values["ela_meta.quad_simple.adj_r2"]
+
+    assert base.status is FeatureStatus.OK
+    assert base.value == pytest.approx(1.0)
+    assert translated.status is FeatureStatus.OK
+    assert translated.value == pytest.approx(1.0, abs=1e-6)
+
+
+def test_true_rank_deficiency_is_still_reported_invalid() -> None:
+    # A genuinely collinear design (duplicated variable) must remain undefined, not be rescued.
+    rng = np.random.Generator(np.random.PCG64(1020))
+    column = rng.uniform(-4.0, 4.0, size=(60, 1))
+    x = np.hstack((column, column))
+    y = rng.uniform(-1.0, 1.0, size=60)
+
+    output = compute(sample_for(x, y), "ela_meta.lin_simple.intercept").values[
+        "ela_meta.lin_simple.intercept"
+    ]
+
+    assert output.status is FeatureStatus.INVALID
+    assert "full-rank" in output.message
+
+
 def test_undefined_adjusted_r2_has_structured_status() -> None:
     x = np.array([[-1.0, -1.0], [0.0, 0.5], [1.0, 1.0]])
     y = np.array([1.0, 0.0, 2.0])

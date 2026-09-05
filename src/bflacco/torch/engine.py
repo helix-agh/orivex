@@ -20,6 +20,23 @@ from bflacco.torch.sample import TensorLandscapeSample
 
 IntermediateValue = object
 
+# Numerical failures that are expected for otherwise valid samples. These are isolated per feature
+# as INVALID results; programming errors are not listed and still propagate. Torch surfaces
+# singular designs through ``torch.linalg.LinAlgError`` (a ``RuntimeError`` subclass); only that
+# specific type is treated as numerical so unrelated ``RuntimeError`` bugs stay distinguishable.
+EXPECTED_NUMERICAL_ERRORS: tuple[type[Exception], ...] = (
+    FeatureUnavailable,
+    ArithmeticError,
+    torch.linalg.LinAlgError,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _IntermediateFailure:
+    """Marks an intermediate that raised an expected numerical failure, propagated to dependents."""
+
+    message: str
+
 
 @dataclass(frozen=True, slots=True)
 class TensorComputationContext:
@@ -33,9 +50,12 @@ class TensorComputationContext:
 
     def intermediate(self, name: str) -> IntermediateValue:
         try:
-            return self.intermediates[name]
+            value = self.intermediates[name]
         except KeyError as error:
             raise RuntimeError(f"intermediate was not planned: {name}") from error
+        if isinstance(value, _IntermediateFailure):
+            raise FeatureUnavailable(value.message)
+        return value
 
 
 TensorFeatureCalculator = Callable[[TensorComputationContext], torch.Tensor]
@@ -95,7 +115,10 @@ class TensorEngine:
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
             context = TensorComputationContext(sample, MappingProxyType(cache), objective_y)
-            cache[intermediate.name] = self._intermediates[intermediate.name].calculate(context)
+            try:
+                cache[intermediate.name] = self._intermediates[intermediate.name].calculate(context)
+            except EXPECTED_NUMERICAL_ERRORS as error:
+                cache[intermediate.name] = _IntermediateFailure(str(error))
 
         context = TensorComputationContext(sample, MappingProxyType(cache), objective_y)
         values: dict[str, FeatureValue[torch.Tensor]] = {}
@@ -107,7 +130,7 @@ class TensorEngine:
                 if not bool(torch.isfinite(value).detach().item()):
                     raise FeatureUnavailable("definition produced a non-finite value")
                 values[spec.name] = FeatureValue(value, FeatureStatus.OK, spec.definition)
-            except FeatureUnavailable as error:
+            except EXPECTED_NUMERICAL_ERRORS as error:
                 values[spec.name] = FeatureValue(
                     None,
                     FeatureStatus.INVALID,

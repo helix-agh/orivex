@@ -122,6 +122,27 @@ def test_meta_model_feature_backpropagates_through_objective_model() -> None:
     assert not torch.isclose(parameter.grad, torch.zeros_like(parameter.grad))
 
 
+def test_full_rank_quadratic_survives_large_coordinate_offset() -> None:
+    rng = np.random.Generator(np.random.PCG64(1600))
+    x = rng.uniform(-5.0, 5.0, size=(100, 2))
+    y = np.sum(x * x, axis=1)
+    offset = 1e6
+    translated = TensorLandscapeSample(
+        torch.as_tensor(x + offset, dtype=torch.float64),
+        torch.as_tensor(y, dtype=torch.float64),
+        torch.full((2,), -5.0 + offset, dtype=torch.float64),
+        torch.full((2,), 5.0 + offset, dtype=torch.float64),
+    )
+
+    output = compute_torch(translated, "ela_meta.quad_simple.adj_r2").values[
+        "ela_meta.quad_simple.adj_r2"
+    ]
+
+    assert output.status is FeatureStatus.OK
+    assert output.value is not None
+    assert output.value.item() == pytest.approx(1.0, abs=1e-6)
+
+
 def test_meta_model_reports_rank_sample_size_and_variance_failures() -> None:
     rank_deficient = TensorLandscapeSample(
         torch.tensor([[-1.0, -1.0], [0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]),

@@ -35,13 +35,28 @@ REFERENCE = Reference(
 class CenteredObjectives:
     observations: int
     values: np.ndarray
+    scale: float
 
 
 def centered_objectives(context: ComputationContext) -> CenteredObjectives:
+    """Mean-centered objectives rescaled to unit maximum magnitude.
+
+    The type-3 skewness and kurtosis are invariant to a positive scaling of the deviations, so the
+    shared moments are accumulated from ``(y - mean) / max|y - mean|`` instead of the raw
+    deviations. The scale cancels analytically in every dependent feature, which keeps the moment
+    sums bounded by the observation count and therefore representable at any finite objective scale.
+    ``scale`` is ``0.0`` exactly for a constant objective.
+    """
     y = context.y
-    centered = y - np.mean(y)
-    centered.flags.writeable = False
-    return CenteredObjectives(observations=y.size, values=centered)
+    deviations = y - np.mean(y)
+    # Constancy is decided on the objectives directly: a genuinely constant objective can still
+    # acquire tiny nonzero deviations through mean rounding, and rescaling would otherwise amplify
+    # that noise into apparently valid moments.
+    constant = y.size == 0 or bool(np.min(y) == np.max(y))
+    scale = 0.0 if constant else float(np.max(np.abs(deviations)))
+    values = deviations / scale if scale > 0.0 else np.zeros_like(deviations)
+    values.flags.writeable = False
+    return CenteredObjectives(observations=y.size, values=values, scale=scale)
 
 
 CENTERED = IntermediateDefinition(
@@ -101,7 +116,7 @@ def skewness_type3(context: ComputationContext) -> float:
     third = _sum(context, "y.sum3")
     if centered.observations < 3:
         raise FeatureUnavailable("type-3 skewness requires at least 3 observations")
-    if second == 0.0:
+    if centered.scale == 0.0:
         raise FeatureUnavailable("skewness is undefined for constant objective values")
     n = centered.observations
     type1 = np.sqrt(n) * third / second**1.5
@@ -114,7 +129,7 @@ def kurtosis_type3(context: ComputationContext) -> float:
     fourth = _sum(context, "y.sum4")
     if centered.observations < 4:
         raise FeatureUnavailable("type-3 kurtosis requires at least 4 observations")
-    if second == 0.0:
+    if centered.scale == 0.0:
         raise FeatureUnavailable("kurtosis is undefined for constant objective values")
     n = centered.observations
     ratio = n * fourth / second**2
