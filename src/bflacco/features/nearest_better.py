@@ -126,12 +126,20 @@ def _graph(context: ComputationContext) -> NearestBetterGraph:
 
 
 def _sample_std(values: np.ndarray, description: str) -> float:
+    """Sample standard deviation. A zero result is a valid statistic, not a failure.
+
+    Zero variation is only undefined when the value is used as a denominator; callers that
+    divide by it guard the zero explicitly with :func:`_nonzero_denominator`.
+    """
     if values.size < 2:
         raise FeatureUnavailable(f"{description} requires at least 2 finite values")
-    result = float(np.std(values, ddof=1))
-    if result == 0.0:
+    return float(np.std(values, ddof=1))
+
+
+def _nonzero_denominator(value: float, description: str) -> float:
+    if value == 0.0:
         raise FeatureUnavailable(f"{description} has zero variation")
-    return result
+    return value
 
 
 def _correlation(left: np.ndarray, right: np.ndarray, description: str) -> float:
@@ -148,8 +156,8 @@ def _correlation(left: np.ndarray, right: np.ndarray, description: str) -> float
 def sd_ratio(context: ComputationContext) -> float:
     graph = _graph(context)
     numerator = _sample_std(graph.nearest_distances, "nearest-neighbour standard deviation")
-    denominator = _sample_std(
-        graph.nearest_better_distances,
+    denominator = _nonzero_denominator(
+        _sample_std(graph.nearest_better_distances, "nearest-better standard deviation"),
         "nearest-better standard deviation",
     )
     return numerator / denominator
