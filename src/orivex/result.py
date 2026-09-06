@@ -46,7 +46,7 @@ class ExecutionMetadata:
     device: DeviceType = "cpu"
     device_index: int | None = None
     dtype: FloatingDType = "float64"
-    y_normalization: YNormalization = "none"
+    y_normalization: YNormalization = None
     constant_objective: bool = False
     options: FeatureOptions = field(default_factory=resolve_options)
 

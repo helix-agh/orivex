@@ -61,8 +61,8 @@ def compute(
 ) -> ComputationResult[torch.Tensor]:
     """Compute tensor features with min-max objective normalization by default.
 
-    ``y_normalization="none"`` preserves raw canonical objectives; ``"zscore"`` uses
-    population standard deviation. Min-max preprocessing is piecewise differentiable.
+    ``y_normalization=None`` preserves raw canonical objectives.
+    Min-max preprocessing is piecewise differentiable.
     All modes preserve the sample's tensors, dtype, device, and autograd history.
     ``options`` is a nested mapping keyed by feature group, for example
     ``{"fitness_distance": {"proportion_of_best": 0.25}}``. Omit it to use defaults.

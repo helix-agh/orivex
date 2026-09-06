@@ -80,7 +80,7 @@ def test_constant_objective_with_nonzero_magnitude_is_invalid(constant: float) -
     y = np.full(7, constant)
 
     for feature in ("ela_distr.skewness", "ela_distr.kurtosis"):
-        output = compute(sample_for(y), feature, y_normalization="none").values[feature]
+        output = compute(sample_for(y), feature, y_normalization=None).values[feature]
         assert output.status is FeatureStatus.INVALID
         assert "constant" in output.message
 
@@ -90,9 +90,9 @@ def test_distribution_features_are_stable_at_extreme_objective_scales(scale: flo
     # Raw moment powers overflowed (kurtosis at 1e80, skewness at 1e120) or divided by an
     # underflowed second moment (1e-150); scale-stable moments must recover the true value instead.
     y = np.array([1.0, 2.0, 3.0, 4.0, 8.0])
-    expected = values(compute(sample_for(y), "ela_distr.*", y_normalization="none"))
+    expected = values(compute(sample_for(y), "ela_distr.*", y_normalization=None))
 
-    result = compute(sample_for(scale * y), "ela_distr.*", y_normalization="none")
+    result = compute(sample_for(scale * y), "ela_distr.*", y_normalization=None)
 
     assert all(item.status is FeatureStatus.OK for item in result.values.values())
     assert values(result) == pytest.approx(expected, rel=1e-10, abs=1e-12)
@@ -153,7 +153,7 @@ def test_distribution_features_match_r_flacco_1_8(case: str) -> None:
     ]
 
     result = compute(
-        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "ela_distr.*", y_normalization="none"
+        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "ela_distr.*", y_normalization=None
     )
 
     assert result.values["ela_distr.skewness"].value == pytest.approx(

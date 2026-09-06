@@ -86,7 +86,7 @@ def test_constant_objective_with_nonzero_magnitude_is_invalid(constant: float) -
     y = [constant] * 7
 
     for feature in ("ela_distr.skewness", "ela_distr.kurtosis"):
-        output = compute(tensor_sample(y), feature, y_normalization="none").values[feature]
+        output = compute(tensor_sample(y), feature, y_normalization=None).values[feature]
         assert output.status is FeatureStatus.INVALID
         assert output.message is not None
         assert "constant" in output.message
@@ -95,10 +95,10 @@ def test_constant_objective_with_nonzero_magnitude_is_invalid(constant: float) -
 @pytest.mark.parametrize("scale", [1e80, 1e200, 1e-120, 1e-200])
 def test_distribution_features_are_stable_at_extreme_objective_scales(scale: float) -> None:
     base = [1.0, 2.0, 3.0, 4.0, 8.0]
-    expected = compute(tensor_sample(base), "ela_distr.*", y_normalization="none")
+    expected = compute(tensor_sample(base), "ela_distr.*", y_normalization=None)
 
     scaled = [value * scale for value in base]
-    result = compute(tensor_sample(scaled), "ela_distr.*", y_normalization="none")
+    result = compute(tensor_sample(scaled), "ela_distr.*", y_normalization=None)
 
     for name, item in result.values.items():
         assert item.status is FeatureStatus.OK
@@ -180,7 +180,7 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
     )
     assert all(capability.backend == "torch" for capability in capabilities)
     assert all(capability.autograd == "piecewise" for capability in capabilities)
-    for item in list_capabilities(y_normalization="none"):
+    for item in list_capabilities(y_normalization=None):
         expected = "piecewise" if item.feature_name.startswith("fitness_distance.") else "smooth"
         assert item.autograd == expected
     assert all(spec is numpy_specs[spec.name] for spec in specs)

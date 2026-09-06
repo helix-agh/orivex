@@ -17,423 +17,67 @@
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> ·
-  <a href="#usage">Usage</a> ·
-  <a href="docs/roadmap.md">Roadmap</a> ·
-  <a href="docs/verification.md">Verification</a> ·
-  <a href="#benchmarks">Benchmarks</a>
+  <a href="https://helix-agh.github.io/orivex/">Documentation</a> ·
+  <a href="https://helix-agh.github.io/orivex/getting-started/quickstart/">Quick start</a> ·
+  <a href="https://helix-agh.github.io/orivex/api/">API reference</a> ·
+  <a href="https://helix-agh.github.io/orivex/development/contributing/">Contributing</a>
 </p>
 
 **orivex** is a successor to [`pflacco`](https://github.com/Reiyan/pflacco)
-for exploratory landscape analysis (ELA). It computes ELA features from a sample of decision
-vectors and their objective values, and it is designed so that every feature is individually
-selectable and explicit about its computational cost.
+for exploratory landscape analysis (ELA). Compute individually selected features from sampled
+points and objective values, with shared intermediates, explicit costs, and versioned definitions.
+A NumPy/SciPy core is complemented by an optional differentiable PyTorch backend.
 
-The project is in its initial specification and verification phase. It is not yet a drop-in
-replacement for `pflacco`.
-
-## Why orivex
-
-- **Selective computation** — request individual features without calculating an entire
-  historical group; the planner evaluates only the intermediates they depend on.
-- **Shared intermediates, computed once** — a dependency planner calculates each shared
-  numerical intermediate a single time per request.
-- **Explicit costs** — CPU, memory, and additional objective-evaluation costs are declared,
-  never hidden.
-- **Mathematical specifications** — every feature carries a versioned mathematical specification and
-  is checked with analytical, metamorphic, and R `flacco` differential tests.
-- **Two backends** — a NumPy/SciPy core plus an optional, fully differentiable PyTorch backend
-  that keeps tensors on their device and connected to the autograd graph.
-
-## Implemented features
-
-| Group        | Feature slice                                                          |
-| ------------ | --------------------------------------------------------------------- |
-| `ela_distr`  | individually selectable type-3 skewness and kurtosis                  |
-| `ela_meta`   | selected linear and corrected quadratic model intercept/fit statistics |
-| `fitness_distance` | all six fitness/distance means, sample deviations, covariance, and correlation |
-| `ic`         | all five information-content outputs, deterministic nearest-neighbour tour |
-| `nbc`        | all five nearest-better-clustering outputs, deterministic tie handling |
+The project is pre-release and is not yet a drop-in replacement for `pflacco`.
 
 ## Installation
 
-The package is not published yet, so install it from a source checkout. Python 3.10 or newer,
-NumPy, and SciPy are the only runtime requirements.
+Python 3.10 or newer is required. The package is not published yet; install from a checkout:
 
 ```bash
-uv sync                        # runtime dependencies and the project itself
-uv sync --extra dev            # add Ruff, ty, pytest, and pre-commit
-uv sync --extra benchmark      # add the benchmark-only dependencies
+git clone https://github.com/helix-agh/orivex.git
+cd orivex
+uv sync
 ```
 
-With plain `pip`:
+With pip, run `python -m pip install -e .`. Add the optional PyTorch backend with
+`uv sync --extra torch` or `python -m pip install -e ".[torch]"`.
 
-```bash
-python -m pip install -e ".[dev]"
-```
-
-PyTorch is an optional tensor-native backend and is not imported or installed for NumPy users:
-
-```bash
-python -m pip install -e ".[torch]"
-```
-
-Every example below can also be run straight from the checkout without installing anything, by
-putting the source tree on the import path: `PYTHONPATH=src python your_script.py`.
-
-### Differentiable PyTorch features
-
-The explicit `orivex.torch` namespace keeps tensors on their existing device, preserves their
-floating dtype, and returns scalar tensors connected to the autograd graph. The differentiable
-profile contains distribution skewness and kurtosis, the ELA meta-model adjusted R-squared
-and linear-intercept features, and all six fitness-distance statistics:
-
-```python
-import torch
-
-from orivex.torch import TensorLandscapeSample, compute
-
-x = torch.rand(200, 2, device="cuda", dtype=torch.float32, requires_grad=True)
-y = torch.sum(x**2, dim=1)
-bounds = torch.full((2,), 5.0, device=x.device, dtype=x.dtype)
-sample = TensorLandscapeSample(x, y, lower=-bounds, upper=bounds)
-
-result = compute(sample, "ela_distr.skewness")
-feature = result.values["ela_distr.skewness"].value
-feature.backward()
-```
-
-There is no implicit fallback to NumPy: requesting a known feature that has no Torch calculator
-raises `UnsupportedFeatureError`. Use `orivex.torch.list_features()` and
-`orivex.torch.list_capabilities()` to discover the implemented profile and its declared device,
-dtype, and autograd support.
-
-## Usage
-
-### Compute features for a sample
-
-Wrap paired decision and objective observations in a `LandscapeSample`, then ask for the features
-you want. Selectors are exact feature names or `fnmatch` globs, given as a single string or a list.
+## Quick start
 
 ```python
 import numpy as np
 
 from orivex import LandscapeSample, compute
 
-rng = np.random.default_rng(20260830)
-lower, upper = np.full(2, -5.0), np.full(2, 5.0)
+rng = np.random.default_rng(42)
+x = rng.uniform(-5.0, 5.0, size=(200, 2))
+y = np.sum(x**2, axis=1)
+sample = LandscapeSample(x, y, lower=[-5.0, -5.0], upper=[5.0, 5.0])
 
-x = rng.uniform(lower, upper, size=(200, 2))
-y = np.sum(x**2, axis=1) + 10.0 * np.sum(np.cos(2 * np.pi * x), axis=1)  # Rastrigin
-
-sample = LandscapeSample(x, y, lower=lower, upper=upper)
-result = compute(sample, ["ela_distr.*", "ic.h_max", "nbc.nn_nb.mean_ratio"])
-
+result = compute(sample, ["ela_distr.skewness", "nbc.nn_nb.mean_ratio"])
 for name, item in result.values.items():
-    print(f"{name:24s} {item.value:.6f}  [{item.status.value}]")
+    print(name, item.value, item.status.value)
 ```
 
-```text
-ela_distr.kurtosis       -0.211763  [ok]
-ela_distr.skewness       0.139713  [ok]
-ic.h_max                 0.839520  [ok]
-nbc.nn_nb.mean_ratio     0.570166  [ok]
-```
+Objective values are min-max normalized by default. Pass `y_normalization=None` to use raw
+canonical objectives. Undefined features return an `invalid` status with an explanation.
 
-`LandscapeSample` validates its inputs on construction: `X` must be two-dimensional and `y`
-one-dimensional with matching length, all values must be finite, every lower bound must be
-strictly below its upper bound, and all observations must lie inside the box. The sample is
-immutable and its arrays are read-only, so a sample can be reused across many `compute` calls.
+## Documentation
 
-### Objective normalization
+Read the **[documentation](https://helix-agh.github.io/orivex/)** for installation, feature
+selection, normalization, fitness-distance conventions, PyTorch support, and API reference.
+The [feature overview](docs/features/index.md), [contributing guide](docs/development/contributing.md),
+and [benchmark guide](docs/development/benchmarks.md) are also available in this checkout.
 
-`compute` now defaults to `y_normalization="minmax"` in both backends. It first converts the
-objective to minimization convention, then applies `(y - min(y)) / (max(y) - min(y))` once per
-request. `LandscapeSample.y` and `sample.minimization_y` retain the original observations and
-their raw canonical values. Choose preprocessing explicitly when reproducing older results:
-
-```python
-compute(sample, "ela_meta.*")  # min-max, the default
-compute(sample, "ela_meta.*", y_normalization="none")  # raw canonical objectives
-compute(sample, "ela_meta.*", y_normalization="zscore")  # population standard deviation
-```
-
-Min-max and z-score preprocessing remove positive objective-scale and shift dependence on the
-same finite nonconstant observations, up to floating-point accuracy. They do not remove
-variation between sampling designs. Constant objectives map to zero in normalized modes;
-features requiring variation still return `invalid`. No epsilon is added to the denominator.
-
-This default changes intercepts and IC thresholds relative to earlier releases. `FeatureSpec`
-continues to describe the underlying formula on its input objectives; preprocessing and the
-formula definition together identify the computed quantity. Normalization precedes any
-family-specific duplicate aggregation. R/pflacco raw comparisons explicitly use `"none"`.
-
-Metadata includes `y_normalization`, `y_normalization_definition`, `constant_objective`, and
-`preprocessing_fingerprint`. Use the preprocessing fingerprint together with feature definitions
-and execution settings for result caching. The raw sample fingerprint alone does not identify
-the normalization mode.
-
-Torch preprocessing preserves dtype, device, and gradients. Min-max is piecewise differentiable
-at changes in the extrema; `orivex.torch.list_capabilities()` conservatively reports the default
-pipeline as `piecewise`. Pass `y_normalization="none"` or `"zscore"` to capability discovery to
-inspect those modes. This is objective preprocessing, separate from scaling a feature vector
-for a downstream machine-learning model.
-
-### Fitness-distance features
-
-Both backends support all six pflacco fitness-distance outputs:
-`fitness_mean`, `fitness_std`, `distance_mean`, `distance_std`, `fd_cov`, and `fd_correlation`.
-They keep the best `round(n * proportion_of_best)` observations. The default fraction is **0.1**;
-Python's ties-to-even rounding applies. Maximization selects the largest original objectives.
-At least two selected observations are required.
-
-```python
-compute(sample, "fitness_distance.*")  # all six, best 10%, min-max normalized
-compute(
-    sample,
-    "fitness_distance.*",
-    options={"fitness_distance": {"proportion_of_best": 0.25}},
-)
-compute(
-    sample,
-    "fitness_distance.*",
-    options={"fitness_distance": {"proportion_of_best": 1.0}},  # full sample
-    y_normalization="none",  # raw objective values
-)
-```
-
-`options` is a dictionary keyed by feature group and works identically in NumPy and Torch.
-No options class is needed. Omit it, pass `None`, or use an empty dictionary to keep defaults.
-Currently the only supported setting is `fitness_distance.proportion_of_best`, which must be
-finite and in `(0, 1]`. Unknown groups, unknown option names, and invalid values raise errors.
-Options affect only their named group, including in requests that mix groups.
-
-Objective normalization uses the **full sample**; selection ranks the raw canonical objectives
-to avoid artificial ties from rounding during normalization. Distances are always **Euclidean
-in raw decision coordinates, measured from the best selected observation**. This reference is
-estimated from the sample; no known global optimum is required or accepted. Selection and
-reference ties choose the first original row, so distances for tied samples can depend on row
-order. This explicit tie rule may differ from pflacco's default unstable sort.
-
-Standard deviations use `ddof=1`; covariance divides by the selected count `k`. Following
-pflacco, `fd_correlation` divides this population covariance by the two sample deviations,
-so it equals **`(k-1)/k` times Pearson correlation**. Zero fitness or distance variance makes
-only correlation invalid; the other statistics remain available. The full-sample case works
-in orivex, including reference selection (the inspected pflacco version fails in that path).
-
-Selection is shared across requested outputs. Fitness-only requests need no distances;
-distance outputs share one reference-distance vector, with `O(n + k*d)` work and memory
-instead of a pairwise distance matrix. Torch preserves dtype, device, and autograd, with
-piecewise gradients through selected objectives and reference coordinates. Selection changes
-and ties are nonsmooth; zero deviations and coincident distances use zero gradient conventions.
-
-Effective options, including defaults, are copied into an immutable `result.metadata.options`
-mapping. For example, read the fraction as
-`result.metadata.options["fitness_distance"]["proportion_of_best"]`. Caller dictionaries are
-never modified or retained. Include these settings with feature definitions and the
-preprocessing fingerprint in result cache keys. Runtime stays in metadata.
-
-### Selecting individual features avoids unrelated work
-
-The planner computes only the intermediates the requested features actually depend on, and each
-shared intermediate is computed once per call. `ComputationResult.metadata` records what happened.
-
-```python
-compute(sample, "ela_distr.skewness").metadata.computed_intermediates
-# ('y.centered', 'y.sum2', 'y.sum3')
-
-compute(sample, "ela_distr.*").metadata.computed_intermediates
-# ('y.centered', 'y.sum2', 'y.sum4', 'y.sum3')
-```
-
-```python
-metadata = result.metadata
-metadata.requested_features  # resolved feature names, in execution order
-metadata.computed_intermediates  # shared intermediates actually evaluated
-metadata.sample_fingerprint  # SHA-256 over X, y, bounds, and objective sense
-metadata.additional_objective_evaluations  # 0 for every currently implemented feature
-metadata.runtime_seconds  # wall-clock time of this call
-metadata.workers  # explicit worker budget used by supporting kernels
-```
-
-### Controlling parallel work
-
-Feature computation defaults to one worker so repeated or externally parallel analyses do not
-silently occupy every CPU. Supporting kernels can use a specific positive worker count, or all
-available CPUs with `-1`:
-
-```python
-fast_single_landscape = compute(sample, "ic.*", workers=-1)
-```
-
-Using all CPUs reduces IC wall latency on sufficiently large samples, but increases total CPU
-consumption and can be slower for small samples. Keep the default when parallelizing across many
-landscapes.
-
-The sample fingerprint identifies the raw numerical input for provenance. Use the preprocessing
-fingerprint and feature definitions when identifying cached results.
-
-### Maximization problems
-
-Declare the objective sense instead of negating `y` by hand. Features that claim invariance under
-sense reversal return identical values either way.
-
-```python
-from orivex import ObjectiveSense
-
-maximizing = LandscapeSample(x, -y, lower=lower, upper=upper, sense=ObjectiveSense.MAXIMIZE)
-minimizing = LandscapeSample(x, y, lower=lower, upper=upper)
-
-compute(maximizing, "nbc.*")  # same values as compute(minimizing, "nbc.*")
-```
-
-`sample.minimization_y` exposes the objective in minimization convention if you need it directly.
-
-### Discovering what is available
-
-`list_features()` returns the full specification of every registered feature, not just its name.
-
-```python
-from orivex import list_features
-
-for spec in list_features():
-    print(
-        f"{spec.name:32s} {spec.group:10s} {spec.cost.tier.value:14s} n>={spec.minimum_observations}"
-    )
-```
-
-```text
-ela_distr.kurtosis               ela_distr  sample_only    n>=4
-ela_distr.skewness               ela_distr  sample_only    n>=3
-ela_meta.lin_simple.adj_r2       ela_meta   sample_only    n>=3
-ela_meta.lin_simple.intercept    ela_meta   sample_only    n>=2
-ela_meta.lin_w_interact.adj_r2   ela_meta   sample_only    n>=3
-ela_meta.quad_simple.adj_r2      ela_meta   sample_only    n>=3
-ela_meta.quad_w_interact.adj_r2  ela_meta   sample_only    n>=3
-fitness_distance.distance_mean  fitness_distance sample_only n>=2 selected
-fitness_distance.distance_std   fitness_distance sample_only n>=2 selected
-fitness_distance.fd_correlation fitness_distance sample_only n>=2 selected
-fitness_distance.fd_cov         fitness_distance sample_only n>=2 selected
-fitness_distance.fitness_mean   fitness_distance sample_only n>=2 selected
-fitness_distance.fitness_std    fitness_distance sample_only n>=2 selected
-ic.eps_max                       ic         sample_only    n>=3
-ic.eps_ratio                     ic         sample_only    n>=3
-ic.eps_s                         ic         sample_only    n>=3
-ic.h_max                         ic         sample_only    n>=3
-ic.m0                            ic         sample_only    n>=3
-nbc.dist_ratio.coeff_var         nbc        sample_only    n>=2
-nbc.nb_fitness.cor               nbc        sample_only    n>=2
-nbc.nn_nb.cor                    nbc        sample_only    n>=2
-nbc.nn_nb.mean_ratio             nbc        sample_only    n>=2
-nbc.nn_nb.sd_ratio               nbc        sample_only    n>=2
-```
-
-Each `FeatureSpec` also carries `definition` (the versioned specification identifier), `summary`,
-`kind`, `requirements`, `intermediates`, `cost` (tier plus CPU and memory complexity),
-`deterministic`, `invariances`, `references`, `legacy_names`, and `notes`.
-
-### Mathematically undefined outputs
-
-A feature that is undefined for an otherwise valid sample returns a `FeatureValue` with status
-`invalid` and an explanation rather than raising or silently producing `NaN`.
-
-```python
-from orivex.result import FeatureStatus
-
-flat = LandscapeSample(x, np.zeros(len(x)), lower=lower, upper=upper)
-item = compute(flat, "ela_distr.skewness").values["ela_distr.skewness"]
-
-item.status is FeatureStatus.INVALID  # True
-item.value  # None
-item.message  # 'skewness is undefined for constant objective values'
-```
-
-A selector that matches no registered feature is a caller error and raises instead:
-
-```python
-from orivex.registry import UnknownFeatureSelection
-
-compute(sample, "ela_meta.nonexistent")
-# UnknownFeatureSelection: selector matched no features: ela_meta.nonexistent
-```
-
-## Development order
-
-1. Specify feature semantics and catalogue known legacy defects.
-2. Establish analytical, metamorphic, and R `flacco` differential tests.
-3. Build the sample model, registry, planner, and result metadata.
-4. Implement the zero-additional-evaluation core in NumPy/SciPy.
-5. Benchmark before introducing native kernels.
-
-See [the roadmap](docs/roadmap.md) and [verification strategy](docs/verification.md).
-
-## Development checks
-
-Install the development dependencies and Git hook once, then run the complete suite as needed:
+Preview the documentation locally:
 
 ```bash
-uv sync --extra dev
-uv run pre-commit install
-uv run pre-commit run --all-files
+uv sync --extra docs
+uv run --no-sync mkdocs serve
 ```
 
-The hook applies Ruff linting/formatting, runs ty over the library source, validates project and
-data files, and checks common repository hygiene problems. Direct checks are available through
-`uv run ruff check .`, `uv run ruff format --check .`, and `uv run ty check`.
-
-The test suite covers analytical, metamorphic, and R `flacco` differential cases. `pyproject.toml`
-already puts `src` on the import path, so no install step is required:
-
-```bash
-uv run pytest                                        # everything
-uv run pytest tests/features/test_information_content.py
-uv run pytest -k nearest_better                      # one feature family
-uv run pytest tests/verification                     # metamorphic and differential checks
-uv run pytest --cov=orivex --cov-report=term-missing
-```
-
-The stability-experiment regression tests additionally require the benchmark extra:
-`uv run --extra dev --extra benchmark pytest`. CI includes these dependencies; without them,
-that test module is skipped.
-
-The R differential fixtures are checked in. Regenerate them only when the recorded inputs or the
-reference computation change, which requires R with the `flacco` and `jsonlite` packages:
-
-```bash
-uv run python tools/generate_fixture_inputs.py
-Rscript tools/generate_r_fixtures.R
-```
-
-## Benchmarks
-
-Benchmarks are diagnostics, not assertions in the test suite. Run them from the repository root.
-The two standalone orivex benchmarks need nothing beyond the runtime dependencies:
-
-```bash
-uv run python benchmarks/benchmark_distribution.py
-uv run python benchmarks/benchmark_meta_model.py
-```
-
-The comparison and stability scripts need the benchmark extra, and the `compare_pflacco_*` scripts
-additionally load a `pflacco` **source checkout** — by default a sibling directory `../pflacco`,
-overridable with `--pflacco-root`:
-
-```bash
-uv sync --extra benchmark
-
-uv run --extra benchmark python benchmarks/compare_pflacco_distribution.py \
-    --sizes 100 1000 --dimension 10 --repeats 5 --calls 10
-uv run --extra benchmark python benchmarks/compare_pflacco_families.py \
-    --sizes 100 500 --dimensions 2 5 --threads 1 --json report.json
-uv run --extra benchmark python benchmarks/analyze_feature_stability.py \
-    --dimensions 2 5 --seeds 30 --y-mode standardized
-```
-
-Each report records dependency versions, selectors, sample shape, and median CPU and wall-clock
-time, so store its output alongside any optimization claim; `--json` retains the full environment
-and every individual measurement. See [benchmarks/README.md](benchmarks/README.md) for the scope
-and caveats of each script, especially the parts of the `pflacco` comparison that are not yet a
-same-instruction-kernel comparison.
+See [documentation development](docs/development/documentation.md) for strict builds and deployment.
 
 ## License
 

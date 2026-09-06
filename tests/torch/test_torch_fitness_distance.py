@@ -18,7 +18,7 @@ def sample_for(y, *, sense="minimize"):
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 @pytest.mark.parametrize("proportion", [0.1, 0.5, 1.0])
 @pytest.mark.parametrize("sense", ["minimize", "maximize"])
 def test_matches_numpy_and_preserves_dtype(dtype, mode, proportion, sense):
@@ -49,7 +49,7 @@ def test_matches_numpy_and_preserves_dtype(dtype, mode, proportion, sense):
     assert result.metadata.computed_intermediates == ("fitness_distance.selection",)
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 @pytest.mark.parametrize("proportion", [0.1, 0.5, 1.0])
 def test_gradcheck_through_selection_and_normalization(mode, proportion):
     y = torch.tensor(
@@ -73,14 +73,14 @@ def test_gradcheck_through_selection_and_normalization(mode, proportion):
 
 def test_raw_gradients_flow_only_to_selected_objectives():
     y = torch.arange(25.0, dtype=torch.float64, requires_grad=True)
-    value = compute(sample_for(y), FEATURE, y_normalization="none").values[FEATURE].value
+    value = compute(sample_for(y), FEATURE, y_normalization=None).values[FEATURE].value
     value.backward()
     expected = torch.zeros_like(y)
     expected[0], expected[1] = -1 / np.sqrt(2), 1 / np.sqrt(2)
     torch.testing.assert_close(y.grad, expected)
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 @pytest.mark.parametrize("constant_sample", [False, True])
 def test_constant_selection_returns_connected_zero_with_finite_gradients(mode, constant_sample):
     values = [3.0] * 20 if constant_sample else [3.0] * 19 + [8.0]
@@ -95,7 +95,7 @@ def test_constant_selection_returns_connected_zero_with_finite_gradients(mode, c
 @pytest.mark.parametrize("scale", [1e-200, 1e200, 1e307])
 def test_raw_extreme_scales_preserve_values_and_gradients(scale):
     y = torch.arange(20.0, dtype=torch.float64).mul(scale / 10).requires_grad_()
-    item = compute(sample_for(y), FEATURE, y_normalization="none").values[FEATURE]
+    item = compute(sample_for(y), FEATURE, y_normalization=None).values[FEATURE]
     assert item.value.item() / scale == pytest.approx(0.1 / np.sqrt(2))
     item.value.backward()
     assert torch.isfinite(y.grad).all()
@@ -148,7 +148,7 @@ def test_family_matches_pflacco_reference(case):
     result = compute(
         sample,
         "fitness_distance.*",
-        y_normalization="none",
+        y_normalization=None,
         options={"fitness_distance": case["options"]},
     )
     for name, expected in case["expected"].items():
@@ -157,7 +157,7 @@ def test_family_matches_pflacco_reference(case):
     assert result.metadata.options == {"fitness_distance": case["options"]}
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 @pytest.mark.parametrize("proportion", [0.5, 1.0])
 def test_family_parity_and_gradients_in_x_and_y(mode, proportion):
     rng = np.random.default_rng(78)
@@ -213,7 +213,7 @@ def test_degenerate_family_values_and_finite_gradients(constant_x, constant_y):
     assert torch.isfinite(y.grad).all()
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 @pytest.mark.parametrize("sense, expected", [("minimize", 7 / 3), ("maximize", 11 / 3)])
 def test_best_reference_follows_objective_sense_after_normalization(mode, sense, expected):
     x = torch.tensor([[0.0], [2.0], [5.0], [9.0]], dtype=torch.float64)
@@ -228,7 +228,7 @@ def test_best_reference_follows_objective_sense_after_normalization(mode, sense,
     assert result.values["fitness_distance.distance_mean"].value.item() == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 def test_family_float32_parity_and_tie_handling(mode):
     x = torch.tensor([[0.0, 1.0], [2.0, 0.0], [5.0, 2.0], [9.0, 8.0]], requires_grad=True)
     y = torch.tensor([1.0, 0.0, 0.0, 1.0], requires_grad=True)

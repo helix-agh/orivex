@@ -1,0 +1,29 @@
+.orivex-hero {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+.orivex-hero img {
+  max-width: 85%;
+  margin: 0 auto 1rem;
+}
+
+.orivex-logo-light {
+  display: block;
+}
+
+.orivex-logo-dark {
+  display: none;
+}
+
+[data-md-color-scheme="slate"] .orivex-logo-light {
+  display: none;
+}
+
+[data-md-color-scheme="slate"] .orivex-logo-dark {
+  display: block;
+}
+
+.orivex-hero .md-button {
+  margin: 0.25rem;
+}

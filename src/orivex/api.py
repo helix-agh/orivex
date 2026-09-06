@@ -46,9 +46,9 @@ def compute(
 ) -> ComputationResult:
     """Compute features from canonical objectives, min-max normalized by default.
 
-    ``y_normalization`` is ``"minmax"`` (observed range), ``"zscore"`` (population
-    standard deviation), or ``"none"`` (raw canonical objectives). Normalized constant
-    objectives map to zero. The original sample is preserved; preprocessing is recorded
+    ``y_normalization`` is ``"minmax"`` (observed range) or ``None`` (raw canonical
+    objectives). Normalized constant objectives map to zero. The original sample is
+    preserved; preprocessing is recorded
     separately from mathematical feature definitions in result metadata.
 
     ``options`` is a nested mapping keyed by feature group, for example

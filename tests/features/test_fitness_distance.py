@@ -22,7 +22,7 @@ def test_matches_sorted_sample_estimator(proportion, sense):
     result = compute(
         sample,
         FEATURE,
-        y_normalization="none",
+        y_normalization=None,
         options={"fitness_distance": {"proportion_of_best": proportion}},
     )
     assert result.values[FEATURE].value == pytest.approx(expected, rel=1e-13)
@@ -34,19 +34,17 @@ def test_matches_sorted_sample_estimator(proportion, sense):
 
 def test_default_selection_uses_python_rounding_and_sample_deviation():
     # round(25 * 0.1) == 2: keep [0, 1], not three observations or the full sample.
-    result = compute(sample_for(np.arange(25.0) ** 2), FEATURE, y_normalization="none")
+    result = compute(sample_for(np.arange(25.0) ** 2), FEATURE, y_normalization=None)
     assert result.values[FEATURE].value == pytest.approx(1 / np.sqrt(2))
     assert result.metadata.options["fitness_distance"]["proportion_of_best"] == 0.1
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 def test_normalizes_full_sample_before_selection_and_does_not_filter_other_features(mode):
     sample = sample_for([0, 2, 4, 10])
     y = sample.y
     if mode == "minmax":
         y = y / 10
-    elif mode == "zscore":
-        y = (y - y.mean()) / y.std(ddof=0)
     result = compute(
         sample,
         [FEATURE, "ela_distr.skewness"],
@@ -81,7 +79,7 @@ def test_too_few_selected_observations_are_invalid(n, proportion):
     assert "at least 2 selected observations" in item.message
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 def test_constant_selection_is_valid_zero(mode):
     result = compute(sample_for([3.0] * 19 + [8.0]), FEATURE, y_normalization=mode)
     assert result.values[FEATURE].status is FeatureStatus.OK
@@ -91,7 +89,7 @@ def test_constant_selection_is_valid_zero(mode):
 @pytest.mark.parametrize("scale", [1e-200, 1.0, 1e200, 1e307])
 def test_raw_deviation_is_scale_equivariant_without_variance_overflow(scale):
     y = np.arange(20.0) / 10
-    result = compute(sample_for(y * scale), FEATURE, y_normalization="none")
+    result = compute(sample_for(y * scale), FEATURE, y_normalization=None)
     assert result.values[FEATURE].value / scale == pytest.approx(np.std(y[:2], ddof=1))
 
 
@@ -99,7 +97,7 @@ def test_raw_overflowing_range_is_supported():
     result = compute(
         sample_for([-1.7e308, 0, 1.7e308]),
         FEATURE,
-        y_normalization="none",
+        y_normalization=None,
         options={"fitness_distance": {"proportion_of_best": 1.0}},
     )
     assert result.values[FEATURE].value / 1.7e308 == pytest.approx(1.0)
@@ -107,12 +105,12 @@ def test_raw_overflowing_range_is_supported():
 
 def test_raw_affine_equivariance_permutation_and_sense_reversal():
     y = np.random.default_rng(8).normal(size=100)
-    reference = compute(sample_for(y), FEATURE, y_normalization="none").values[FEATURE].value
+    reference = compute(sample_for(y), FEATURE, y_normalization=None).values[FEATURE].value
     for sample, factor in (
         (sample_for(3 * y[::-1] + 7), 3),
         (sample_for(-y, sense="maximize"), 1),
     ):
-        actual = compute(sample, FEATURE, y_normalization="none").values[FEATURE].value
+        actual = compute(sample, FEATURE, y_normalization=None).values[FEATURE].value
         assert actual == pytest.approx(reference * factor)
 
 
@@ -136,7 +134,7 @@ def test_family_matches_pflacco_reference(case):
     result = compute(
         sample,
         "fitness_distance.*",
-        y_normalization="none",
+        y_normalization=None,
         options={"fitness_distance": case["options"]},
     )
     for name, expected in case["expected"].items():
@@ -154,7 +152,7 @@ def test_full_sample_and_correlation_convention():
     result = compute(
         sample,
         "fitness_distance.*",
-        y_normalization="none",
+        y_normalization=None,
         options={"fitness_distance": {"proportion_of_best": 1}},
     )
     expected = {
@@ -190,7 +188,7 @@ def test_ties_choose_first_rows_and_first_best_reference():
     result = compute(
         sample,
         "fitness_distance.*",
-        y_normalization="none",
+        y_normalization=None,
         options={"fitness_distance": {"proportion_of_best": 0.75}},
     )
     assert result.values["fitness_distance.distance_mean"].value == pytest.approx(5 / 3)

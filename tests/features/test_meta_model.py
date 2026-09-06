@@ -32,7 +32,7 @@ def test_linear_landscape_has_exact_linear_fit() -> None:
     x = rng.uniform(-4.0, 4.0, size=(80, 3))
     y = 4.0 + x @ np.array([2.0, -3.0, 0.5])
 
-    result = compute(sample_for(x, y), "ela_meta.*", y_normalization="none")
+    result = compute(sample_for(x, y), "ela_meta.*", y_normalization=None)
 
     assert result.values["ela_meta.lin_simple.adj_r2"].value == pytest.approx(1.0)
     assert result.values["ela_meta.lin_simple.intercept"].value == pytest.approx(4.0)
@@ -46,7 +46,7 @@ def test_quadratic_landscape_has_exact_quadratic_fit() -> None:
     x = rng.uniform(-4.0, 4.0, size=(100, 3))
     y = np.sum(x * x, axis=1)
 
-    result = compute(sample_for(x, y), "ela_meta.*", y_normalization="none")
+    result = compute(sample_for(x, y), "ela_meta.*", y_normalization=None)
 
     assert result.values["ela_meta.quad_simple.adj_r2"].value == pytest.approx(1.0)
     assert result.values["ela_meta.quad_w_interact.adj_r2"].value == pytest.approx(1.0)
@@ -118,7 +118,7 @@ def load_fixture(case: str) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
 def test_selected_meta_features_match_r_flacco_where_definitions_agree(case: str) -> None:
     x, y, expected = load_fixture(case)
 
-    result = compute(sample_for(x, y), "ela_meta.*", y_normalization="none")
+    result = compute(sample_for(x, y), "ela_meta.*", y_normalization=None)
 
     names = (
         FEATURE_NAMES
@@ -172,9 +172,9 @@ def test_linear_intercept_is_equivariant_to_objective_transform() -> None:
     x = rng.uniform(-4.0, 4.0, size=(80, 2))
     y = np.sin(x[:, 0]) + x[:, 1] ** 2
 
-    original = compute(sample_for(x, y), "ela_meta.lin_simple.intercept", y_normalization="none")
+    original = compute(sample_for(x, y), "ela_meta.lin_simple.intercept", y_normalization=None)
     transformed = compute(
-        sample_for(x, 3.0 * y + 11.0), "ela_meta.lin_simple.intercept", y_normalization="none"
+        sample_for(x, 3.0 * y + 11.0), "ela_meta.lin_simple.intercept", y_normalization=None
     )
 
     original_value = original.values["ela_meta.lin_simple.intercept"].value
@@ -189,12 +189,12 @@ def test_row_and_variable_permutations_preserve_selected_features() -> None:
     row_order = rng.permutation(x.shape[0])
     variable_order = np.array([2, 0, 1])
 
-    original = numeric_values(compute(sample_for(x, y), "ela_meta.*", y_normalization="none"))
+    original = numeric_values(compute(sample_for(x, y), "ela_meta.*", y_normalization=None))
     permuted = numeric_values(
         compute(
             sample_for(x[row_order][:, variable_order], y[row_order]),
             "ela_meta.*",
-            y_normalization="none",
+            y_normalization=None,
         )
     )
 
@@ -212,14 +212,14 @@ def test_full_rank_quadratic_survives_large_coordinate_offset() -> None:
     base = compute(
         LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]),
         "ela_meta.quad_simple.adj_r2",
-        y_normalization="none",
+        y_normalization=None,
     ).values["ela_meta.quad_simple.adj_r2"]
     translated = compute(
         LandscapeSample(
             x + offset, y, [-5.0 + offset, -5.0 + offset], [5.0 + offset, 5.0 + offset]
         ),
         "ela_meta.quad_simple.adj_r2",
-        y_normalization="none",
+        y_normalization=None,
     ).values["ela_meta.quad_simple.adj_r2"]
 
     assert base.status is FeatureStatus.OK

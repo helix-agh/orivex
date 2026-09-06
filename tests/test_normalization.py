@@ -20,24 +20,22 @@ def assert_same(left, right):
             assert item.value == pytest.approx(expected.value, rel=2e-11, abs=2e-12)
 
 
-@pytest.mark.parametrize("mode", ["minmax", "zscore"])
-def test_preprocessing_matches_manual_raw_pipeline_for_every_feature(mode):
+def test_preprocessing_matches_manual_raw_pipeline_for_every_feature():
     original = sample()
     y = original.y
-    transformed = (y - y.min()) / np.ptp(y) if mode == "minmax" else (y - y.mean()) / y.std(ddof=0)
-    expected = compute(sample(transformed), "*", y_normalization="none")
-    result = compute(original, "*", y_normalization=mode)
+    transformed = (y - y.min()) / np.ptp(y)
+    expected = compute(sample(transformed), "*", y_normalization=None)
+    result = compute(original, "*", y_normalization="minmax")
     assert_same(result, expected)
     np.testing.assert_array_equal(original.y, y)
 
 
-@pytest.mark.parametrize("mode", ["minmax", "zscore"])
-def test_all_features_inherit_affine_invariance_and_sense_reversal(mode):
+def test_all_features_inherit_affine_invariance_and_sense_reversal():
     original = sample()
-    reference = compute(original, "*", y_normalization=mode)
-    assert_same(reference, compute(sample(8 * original.y - 123), "*", y_normalization=mode))
+    reference = compute(original, "*", y_normalization="minmax")
+    assert_same(reference, compute(sample(8 * original.y - 123), "*", y_normalization="minmax"))
     assert_same(
-        reference, compute(sample(-original.y, sense="maximize"), "*", y_normalization=mode)
+        reference, compute(sample(-original.y, sense="maximize"), "*", y_normalization="minmax")
     )
 
 
@@ -47,10 +45,12 @@ def test_default_preserves_raw_sample_and_records_distinct_preprocessing_identit
     fingerprint = original.fingerprint
     default = compute(original, "ela_meta.lin_simple.intercept")
     explicit = compute(original, "ela_meta.lin_simple.intercept", y_normalization="minmax")
-    raw = compute(original, "ela_meta.lin_simple.intercept", y_normalization="none")
+    raw = compute(original, "ela_meta.lin_simple.intercept", y_normalization=None)
     assert_same(default, explicit)
     assert default.values != raw.values
     assert default.metadata.y_normalization == "minmax"
+    assert raw.metadata.y_normalization is None
+    assert raw.metadata.y_normalization_definition == "objective-none-v1"
     assert default.metadata.y_normalization_definition == "objective-minmax-v1"
     assert default.metadata.preprocessing_fingerprint == explicit.metadata.preprocessing_fingerprint
     assert default.metadata.preprocessing_fingerprint != raw.metadata.preprocessing_fingerprint
@@ -58,46 +58,45 @@ def test_default_preserves_raw_sample_and_records_distinct_preprocessing_identit
     np.testing.assert_array_equal(original.y, before)
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 def test_constant_objectives_keep_feature_specific_statuses(mode):
     result = compute(sample(np.full(80, 23.0)), ["ela_distr.*", "ela_meta.*"], y_normalization=mode)
     assert result.metadata.constant_objective
     assert result.values["ela_distr.skewness"].status.value == "invalid"
     assert result.values["ela_meta.lin_simple.adj_r2"].status.value == "invalid"
-    expected = 23 if mode == "none" else 0
+    expected = 23 if mode is None else 0
     assert result.values["ela_meta.lin_simple.intercept"].value == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("mode", ["minmax", "zscore"])
 @pytest.mark.parametrize("scale", [1e-300, 1.0, 1e300])
-def test_extreme_finite_scales_preserve_distribution_features(mode, scale):
+def test_extreme_finite_scales_preserve_distribution_features(scale):
     y = np.array([-4.0, -1.0, 0.0, 2.0, 8.0, 9.0])
     x = np.arange(len(y))[:, None]
     a = LandscapeSample(x, y, [-1], [7])
     b = LandscapeSample(x, scale * y, [-1], [7])
     assert_same(
-        compute(a, "ela_distr.*", y_normalization=mode),
-        compute(b, "ela_distr.*", y_normalization=mode),
+        compute(a, "ela_distr.*", y_normalization="minmax"),
+        compute(b, "ela_distr.*", y_normalization="minmax"),
     )
 
 
-@pytest.mark.parametrize("mode", ["minmax", "zscore"])
-def test_overflowing_range_and_close_large_values(mode):
+def test_overflowing_range_and_close_large_values():
     y = np.array([-1.7e308, -8.5e307, 0, 8.5e307, 1.7e308])
-    actual, constant = normalize_objectives(y, mode)
-    expected, _ = normalize_objectives(np.arange(5.0), mode)
+    actual, constant = normalize_objectives(y, "minmax")
+    expected, _ = normalize_objectives(np.arange(5.0), "minmax")
     assert not constant
     np.testing.assert_allclose(actual, expected)
     assert not actual.flags.writeable
     close = np.array([1e100, np.nextafter(1e100, np.inf)])
-    actual, constant = normalize_objectives(close, mode)
+    actual, constant = normalize_objectives(close, "minmax")
     assert not constant
-    np.testing.assert_allclose(actual, [0, 1] if mode == "minmax" else [-1, 1])
+    np.testing.assert_allclose(actual, [0, 1])
 
 
-def test_invalid_normalization_is_rejected():
+@pytest.mark.parametrize("mode", ["zscore", "none", "typo", False, 0])
+def test_invalid_normalization_is_rejected(mode):
     with pytest.raises(ValueError, match="y_normalization"):
-        compute(sample(), "ela_distr.*", y_normalization="typo")
+        compute(sample(), "ela_distr.*", y_normalization=mode)
 
 
 def test_normalization_is_shared_once_per_request(monkeypatch):

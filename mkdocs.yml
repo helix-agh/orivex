@@ -1,0 +1,128 @@
+site_name: orivex
+site_description: A selective and fast engine for exploratory landscape analysis.
+site_url: https://helix-agh.github.io/orivex/
+repo_name: helix-agh/orivex
+repo_url: https://github.com/helix-agh/orivex
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 orivex contributors
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - tools/generate_docs.py
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            allow_inspection: false
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 2
+            members_order: source
+            show_signature_annotations: true
+            separate_signature: true
+            show_if_no_docstring: true
+            filters: ["!^_"]
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css
+
+watch:
+  - src/orivex
+  - tools/generate_docs.py
+  - assets
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Samples and Objective Sense: user-guide/samples.md
+      - Selecting Features: user-guide/computation.md
+      - Objective Normalization: user-guide/normalization.md
+      - Fitness-Distance Features: user-guide/fitness-distance.md
+      - PyTorch and Autograd: user-guide/torch.md
+      - Results and Provenance: user-guide/results.md
+  - Features:
+      - Overview: features/index.md
+      - Catalogue: features/catalogue.md
+  - API Reference:
+      - Overview: api/index.md
+      - Computation: api/computation.md
+      - Samples: api/sample.md
+      - Results: api/results.md
+      - Specifications: api/specifications.md
+      - PyTorch: api/torch.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Benchmarks: development/benchmarks.md
+      - Documentation: development/documentation.md

@@ -106,7 +106,7 @@ def test_zero_nearest_sd_over_positive_denominator_is_valid_zero() -> None:
     x = np.array([[0.0], [1.0], [2.0], [3.0]])
     y = np.array([0.0, 3.0, 2.0, 1.0])
 
-    item = compute(sample_for(x, y), "nbc.nn_nb.sd_ratio", y_normalization="none").values[
+    item = compute(sample_for(x, y), "nbc.nn_nb.sd_ratio", y_normalization=None).values[
         "nbc.nn_nb.sd_ratio"
     ]
 
@@ -120,7 +120,7 @@ def test_constant_distance_ratios_have_zero_coefficient_of_variation() -> None:
     x = np.array([[0.0], [1.0], [3.0], [6.0]])
     y = np.array([0.0, 1.0, 2.0, 3.0])
 
-    item = compute(sample_for(x, y), "nbc.dist_ratio.coeff_var", y_normalization="none").values[
+    item = compute(sample_for(x, y), "nbc.dist_ratio.coeff_var", y_normalization=None).values[
         "nbc.dist_ratio.coeff_var"
     ]
 
@@ -132,7 +132,7 @@ def test_zero_nearest_better_denominator_remains_invalid() -> None:
     # Constant nearest-better distances make the sd_ratio denominator zero: still undefined.
     x = np.array([[0.0], [1.0], [2.0], [3.0]])
     y = np.array([3.0, 2.0, 1.0, 0.0])
-    result = compute(sample_for(x, y), "nbc.nn_nb.sd_ratio", y_normalization="none")
+    result = compute(sample_for(x, y), "nbc.nn_nb.sd_ratio", y_normalization=None)
     item = result.values["nbc.nn_nb.sd_ratio"]
 
     assert item.status is FeatureStatus.INVALID
@@ -149,9 +149,7 @@ def test_nbc_matches_r_flacco_1_8(case: str) -> None:
         "values"
     ]
 
-    result = compute(
-        LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "nbc.*", y_normalization="none"
-    )
+    result = compute(LandscapeSample(x, y, [-5.0, -5.0], [5.0, 5.0]), "nbc.*", y_normalization=None)
 
     for name in FEATURE_NAMES:
         assert result.values[name].value == pytest.approx(expected[name], rel=2e-13, abs=2e-13)

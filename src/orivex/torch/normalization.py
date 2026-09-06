@@ -8,16 +8,15 @@ from orivex.normalization import YNormalization, normalization_definition
 
 
 def normalize_objectives(y: torch.Tensor, mode: YNormalization) -> tuple[torch.Tensor, bool]:
-    """Use observed min/max or population z-scores; constants map to connected zeros.
+    """Use observed min/max; None preserves raw objectives.
 
     Min-max is piecewise differentiable, with nonsmooth boundaries at tied extrema.
-    The z-score expression is mathematically smooth on nonconstant samples, despite using
-    a range-scaled intermediate to avoid overflow. No tensors leave their original device.
+    Constants map to connected zeros. No tensors leave their original device.
     """
     normalization_definition(mode)
     low, high = torch.amin(y), torch.amax(y)
     constant = bool((low == high).detach().item())
-    if mode == "none":
+    if mode is None:
         return y, constant
     if constant:
         return y - y, constant
@@ -26,7 +25,4 @@ def normalize_objectives(y: torch.Tensor, mode: YNormalization) -> tuple[torch.T
         values = (y - low) / span
     else:
         values = (y / 2 - low / 2) / (high / 2 - low / 2)
-    if mode == "zscore":
-        values = values - torch.mean(values)
-        values = values / torch.sqrt(torch.mean(values.square()))
     return values, constant

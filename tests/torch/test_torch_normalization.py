@@ -9,7 +9,7 @@ from orivex.torch import TensorLandscapeSample, compute, list_capabilities
 from orivex.torch.normalization import normalize_objectives
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_numpy_parity_and_sense_canonicalization(mode, dtype):
     rng = np.random.default_rng(14)
@@ -30,7 +30,7 @@ def test_numpy_parity_and_sense_canonicalization(mode, dtype):
     torch.testing.assert_close(s.y, -y)
 
 
-@pytest.mark.parametrize("mode", ["none", "minmax", "zscore"])
+@pytest.mark.parametrize("mode", [None, "minmax"])
 def test_gradcheck_includes_normalization_and_regression(mode):
     x = torch.tensor(
         [[-2.0], [-1.0], [0.2], [0.8], [1.5], [2.0]], dtype=torch.float64, requires_grad=True
@@ -48,27 +48,34 @@ def test_gradcheck_includes_normalization_and_regression(mode):
     assert torch.autograd.gradcheck(calculate, (x, y))
 
 
-@pytest.mark.parametrize("mode", ["minmax", "zscore"])
-def test_constant_and_extreme_tensor_preprocessing(mode):
+def test_constant_and_extreme_tensor_preprocessing():
     y = torch.full((6,), 23.0, dtype=torch.float64, requires_grad=True)
-    value, constant = normalize_objectives(y, mode)
+    value, constant = normalize_objectives(y, "minmax")
     assert constant
     value.sum().backward()
     torch.testing.assert_close(y.grad, torch.zeros_like(y))
     for dtype, magnitude in [(torch.float32, 3e38), (torch.float64, 1.7e308)]:
         y = torch.tensor([-magnitude, 0, magnitude], dtype=dtype)
-        value, constant = normalize_objectives(y, mode)
+        value, constant = normalize_objectives(y, "minmax")
         assert not constant and torch.isfinite(value).all()
-        expected = [0, 0.5, 1] if mode == "minmax" else [-np.sqrt(1.5), 0, np.sqrt(1.5)]
+        expected = [0, 0.5, 1]
         torch.testing.assert_close(value, torch.tensor(expected, dtype=dtype))
 
 
 def test_capabilities_describe_effective_preprocessing():
     assert all(c.autograd == "piecewise" for c in list_capabilities())
-    for capability in list_capabilities(y_normalization="zscore"):
+    for capability in list_capabilities(y_normalization=None):
         expected = (
             "piecewise" if capability.feature_name.startswith("fitness_distance.") else "smooth"
         )
         assert capability.autograd == expected
+
+
+@pytest.mark.parametrize("mode", ["zscore", "none", "typo", False, 0])
+def test_invalid_normalization_is_rejected_by_compute_and_discovery(mode):
     with pytest.raises(ValueError, match="y_normalization"):
-        list_capabilities(y_normalization="typo")
+        list_capabilities(y_normalization=mode)
+    x = torch.arange(6.0, dtype=torch.float64).reshape(-1, 1)
+    sample = TensorLandscapeSample(x, x[:, 0].square(), [0], [6])
+    with pytest.raises(ValueError, match="y_normalization"):
+        compute(sample, "ela_distr.skewness", y_normalization=mode)
