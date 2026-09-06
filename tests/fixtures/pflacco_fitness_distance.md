@@ -3,9 +3,10 @@
 `pflacco_fitness_distance.json` contains all six outputs from the unchanged
 `calculate_fitness_distance_correlation` in the sibling `../pflacco` checkout.
 Source SHA-256 hashes are recorded in the JSON. The reference function and its type
-validator were loaded through `load_reference` in
-`benchmarks/compare_pflacco_fitness_std.py`, which extracts their AST definitions to
-avoid unrelated optional pflacco dependencies.
+validator were loaded by AST extraction in the former fitness-std microbenchmark,
+avoiding unrelated optional pflacco dependencies. The current
+`benchmarks/bbob_correctness.py` imports the complete reference modules directly;
+the existing fixture and its recorded source hashes remain unchanged.
 
 Inputs use NumPy `default_rng(73)`: first `uniform(-4, 4, (30, 3))` for X, then
 `normal(size=30)` for y. The six cases combine minimization and maximization with proportions 0.1, 0.5,
