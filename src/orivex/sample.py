@@ -29,6 +29,18 @@ def _readonly_float_array(value: npt.ArrayLike, *, dimensions: int, name: str) -
     return array
 
 
+def _content_digest(arrays: tuple[FloatArray, ...], sense: ObjectiveSense) -> str:
+    """Hash the numerical contents of ``arrays`` together with the objective sense."""
+
+    digest = hashlib.sha256()
+    for array in arrays:
+        digest.update(str(array.shape).encode("ascii"))
+        digest.update(array.dtype.str.encode("ascii"))
+        digest.update(array.tobytes(order="C"))
+    digest.update(sense.value.encode("ascii"))
+    return digest.hexdigest()
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class LandscapeSample:
     """Paired decision and objective observations with explicit box bounds."""
@@ -40,6 +52,7 @@ class LandscapeSample:
     sense: ObjectiveSense
     _minimization_y: FloatArray
     _fingerprint: str
+    _integrity: str
 
     def __init__(
         self,
@@ -77,13 +90,11 @@ class LandscapeSample:
         minimization_y.flags.writeable = False
         object.__setattr__(self, "_minimization_y", minimization_y)
 
-        digest = hashlib.sha256()
-        for array in (x_array, y_array, lower_array, upper_array):
-            digest.update(str(array.shape).encode("ascii"))
-            digest.update(array.dtype.str.encode("ascii"))
-            digest.update(array.tobytes(order="C"))
-        digest.update(sense_value.value.encode("ascii"))
-        object.__setattr__(self, "_fingerprint", digest.hexdigest())
+        inputs = (x_array, y_array, lower_array, upper_array)
+        object.__setattr__(self, "_fingerprint", _content_digest(inputs, sense_value))
+        object.__setattr__(
+            self, "_integrity", _content_digest((*inputs, minimization_y), sense_value)
+        )
 
     @property
     def n_observations(self) -> int:
@@ -104,3 +115,19 @@ class LandscapeSample:
         """Stable checksum of numerical inputs and objective sense."""
 
         return self._fingerprint
+
+    def validate_unchanged(self) -> None:
+        """Detect in-place mutation of the exposed arrays since construction.
+
+        The arrays are handed out read-only, but callers can re-enable the
+        ``writeable`` flag on the owning storage (or reach it through an alias)
+        and mutate the values in place. That would leave :attr:`fingerprint`
+        stale, breaking the provenance / cache-key contract, so mutation is
+        detected here before the sample is consumed.
+        """
+
+        current = _content_digest(
+            (self.x, self.y, self.lower, self.upper, self._minimization_y), self.sense
+        )
+        if current != self._integrity:
+            raise RuntimeError("LandscapeSample arrays must not be modified in place")

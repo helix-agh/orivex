@@ -36,6 +36,33 @@ def test_fingerprint_depends_on_values_and_sense() -> None:
     )
 
 
+def test_validate_unchanged_passes_for_an_untouched_sample() -> None:
+    sample = LandscapeSample([[0.0], [1.0]], [2.0, 5.0], [0.0], [1.0])
+
+    sample.validate_unchanged()
+
+
+def test_sample_detects_mutation_through_re_enabled_writeable_flag() -> None:
+    sample = LandscapeSample([[0.0], [1.0]], [2.0, 5.0], [0.0], [1.0])
+    fingerprint = sample.fingerprint
+    sample.y.flags.writeable = True
+    sample.y[0] = 999.0
+
+    assert sample.fingerprint == fingerprint
+    with pytest.raises(RuntimeError, match="must not be modified"):
+        sample.validate_unchanged()
+
+
+def test_sample_detects_mutation_through_owning_base_alias() -> None:
+    sample = LandscapeSample([[0.0], [1.0]], [2.0, 5.0], [0.0], [1.0])
+    base = sample.minimization_y.base if sample.minimization_y.base is not None else sample.y
+    base.flags.writeable = True
+    base[0] = -1.0
+
+    with pytest.raises(RuntimeError, match="must not be modified"):
+        sample.validate_unchanged()
+
+
 @pytest.mark.parametrize(
     ("x", "y", "lower", "upper", "message"),
     [

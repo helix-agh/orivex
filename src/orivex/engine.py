@@ -125,6 +125,7 @@ class Engine:
         options = resolve_options(options)
         if workers == 0 or workers < -1:
             raise ValueError("workers must be -1 or a positive integer")
+        sample.validate_unchanged()
         started = time.perf_counter()
         plan = self.planner.plan(features)
         if InputRequirement.RNG in plan.requirements and rng is None:
