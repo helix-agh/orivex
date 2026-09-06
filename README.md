@@ -11,8 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/downloads/"><img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10+-blue.svg"></a>
-  <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-orange.svg">
+  <a href="https://pypi.org/project/orivex/"><img alt="PyPI" src="https://img.shields.io/pypi/v/orivex.svg"></a>
+  <a href="https://pypi.org/project/orivex/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/orivex.svg"></a>
+  <a href="https://github.com/helix-agh/orivex/blob/main/LICENSE.txt"><img alt="License: MIT" src="https://img.shields.io/pypi/l/orivex.svg"></a>
   <img alt="Backends: NumPy and PyTorch" src="https://img.shields.io/badge/backends-NumPy%20%7C%20PyTorch-informational.svg">
 </p>
 
@@ -20,6 +21,7 @@
   <a href="https://helix-agh.github.io/orivex/">Documentation</a> ·
   <a href="https://helix-agh.github.io/orivex/getting-started/quickstart/">Quick start</a> ·
   <a href="https://helix-agh.github.io/orivex/api/">API reference</a> ·
+  <a href="https://github.com/helix-agh/orivex/blob/main/CHANGELOG.md">Changelog</a> ·
   <a href="https://helix-agh.github.io/orivex/development/contributing/">Contributing</a>
 </p>
 
