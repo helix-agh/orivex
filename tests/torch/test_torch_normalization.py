@@ -65,6 +65,10 @@ def test_constant_and_extreme_tensor_preprocessing(mode):
 
 def test_capabilities_describe_effective_preprocessing():
     assert all(c.autograd == "piecewise" for c in list_capabilities())
-    assert all(c.autograd == "smooth" for c in list_capabilities(y_normalization="zscore"))
+    for capability in list_capabilities(y_normalization="zscore"):
+        expected = (
+            "piecewise" if capability.feature_name.startswith("fitness_distance.") else "smooth"
+        )
+        assert capability.autograd == expected
     with pytest.raises(ValueError, match="y_normalization"):
         list_capabilities(y_normalization="typo")

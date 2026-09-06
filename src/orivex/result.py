@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
 from typing import Generic, Literal, TypeAlias, TypeVar
 
 from orivex.normalization import YNormalization, normalization_definition
+from orivex.options import FeatureOptions, resolve_options
 
 FeatureScalar = TypeVar("FeatureScalar")
 BackendName: TypeAlias = Literal["numpy", "torch"]
@@ -47,6 +48,7 @@ class ExecutionMetadata:
     dtype: FloatingDType = "float64"
     y_normalization: YNormalization = "none"
     constant_objective: bool = False
+    options: FeatureOptions = field(default_factory=resolve_options)
 
     @property
     def y_normalization_definition(self) -> str:
@@ -68,6 +70,7 @@ class ExecutionMetadata:
 
     def __post_init__(self) -> None:
         normalization_definition(self.y_normalization)
+        object.__setattr__(self, "options", resolve_options(self.options))
         if self.runtime_seconds < 0:
             raise ValueError("runtime_seconds must not be negative")
         if self.additional_objective_evaluations < 0:

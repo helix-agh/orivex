@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import torch
 
 from orivex.engine import FeatureUnavailable
 from orivex.normalization import YNormalization
+from orivex.options import FeatureOptions, resolve_options
 from orivex.planner import IntermediateSpec, Planner
 from orivex.registry import FeatureRegistry
 from orivex.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
@@ -43,6 +44,7 @@ class TensorComputationContext:
     sample: TensorLandscapeSample
     intermediates: Mapping[str, IntermediateValue]
     objective_y: torch.Tensor | None = None
+    options: FeatureOptions = field(default_factory=resolve_options)
 
     @property
     def y(self) -> torch.Tensor:
@@ -105,7 +107,9 @@ class TensorEngine:
         features: str | tuple[str, ...] | list[str],
         *,
         y_normalization: YNormalization = "minmax",
+        options: FeatureOptions | None = None,
     ) -> ComputationResult[torch.Tensor]:
+        options = resolve_options(options)
         sample.validate_unchanged()
         _synchronize(sample.x.device)
         started = time.perf_counter()
@@ -114,13 +118,15 @@ class TensorEngine:
 
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
-            context = TensorComputationContext(sample, MappingProxyType(cache), objective_y)
+            context = TensorComputationContext(
+                sample, MappingProxyType(cache), objective_y, options
+            )
             try:
                 cache[intermediate.name] = self._intermediates[intermediate.name].calculate(context)
             except EXPECTED_NUMERICAL_ERRORS as error:
                 cache[intermediate.name] = _IntermediateFailure(str(error))
 
-        context = TensorComputationContext(sample, MappingProxyType(cache), objective_y)
+        context = TensorComputationContext(sample, MappingProxyType(cache), objective_y, options)
         values: dict[str, FeatureValue[torch.Tensor]] = {}
         for spec in plan.features:
             try:
@@ -151,5 +157,6 @@ class TensorEngine:
             dtype=sample.dtype_name,
             y_normalization=y_normalization,
             constant_objective=constant,
+            options=options,
         )
         return ComputationResult(values, metadata)

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import numpy as np
 
 from orivex.normalization import YNormalization, normalize_objectives
+from orivex.options import FeatureOptions, resolve_options
 from orivex.planner import IntermediateSpec, Planner
 from orivex.registry import FeatureRegistry
 from orivex.result import ComputationResult, ExecutionMetadata, FeatureStatus, FeatureValue
@@ -52,6 +53,7 @@ class ComputationContext:
     rng: np.random.Generator | None
     workers: int = 1
     objective_y: np.ndarray | None = None
+    options: FeatureOptions = field(default_factory=resolve_options)
 
     @property
     def y(self) -> np.ndarray:
@@ -118,7 +120,9 @@ class Engine:
         rng: np.random.Generator | None = None,
         workers: int = 1,
         y_normalization: YNormalization = "minmax",
+        options: FeatureOptions | None = None,
     ) -> ComputationResult:
+        options = resolve_options(options)
         if workers == 0 or workers < -1:
             raise ValueError("workers must be -1 or a positive integer")
         started = time.perf_counter()
@@ -130,7 +134,14 @@ class Engine:
 
         cache: dict[str, IntermediateValue] = {}
         for intermediate in plan.intermediates:
-            context = ComputationContext(sample, MappingProxyType(cache), rng, workers, objective_y)
+            context = ComputationContext(
+                sample,
+                MappingProxyType(cache),
+                rng,
+                workers,
+                objective_y,
+                options,
+            )
             try:
                 cache[intermediate.name] = self._intermediate_definitions[
                     intermediate.name
@@ -138,7 +149,14 @@ class Engine:
             except EXPECTED_NUMERICAL_ERRORS as error:
                 cache[intermediate.name] = _IntermediateFailure(str(error))
 
-        context = ComputationContext(sample, MappingProxyType(cache), rng, workers, objective_y)
+        context = ComputationContext(
+            sample,
+            MappingProxyType(cache),
+            rng,
+            workers,
+            objective_y,
+            options,
+        )
         values: dict[str, FeatureValue] = {}
         for spec in plan.features:
             definition = self._feature_definitions[spec.name]
@@ -168,5 +186,6 @@ class Engine:
             workers=workers,
             y_normalization=y_normalization,
             constant_objective=constant,
+            options=options,
         )
         return ComputationResult(values, metadata)

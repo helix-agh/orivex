@@ -9,12 +9,16 @@ import torch
 from orivex.api import DEFAULT_ENGINE as NUMPY_ENGINE
 from orivex.capabilities import FeatureCapability
 from orivex.normalization import YNormalization, normalization_definition
+from orivex.options import FeatureOptions
 from orivex.result import ComputationResult
 from orivex.specs import FeatureSpec
 from orivex.torch.engine import TensorEngine
 from orivex.torch.features.distribution import CAPABILITIES as DISTRIBUTION_CAPABILITIES
 from orivex.torch.features.distribution import FEATURES as DISTRIBUTION_FEATURES
 from orivex.torch.features.distribution import INTERMEDIATES as DISTRIBUTION_INTERMEDIATES
+from orivex.torch.features.fitness_distance import CAPABILITIES as FITNESS_DISTANCE_CAPABILITIES
+from orivex.torch.features.fitness_distance import FEATURES as FITNESS_DISTANCE_FEATURES
+from orivex.torch.features.fitness_distance import INTERMEDIATES as FITNESS_DISTANCE_INTERMEDIATES
 from orivex.torch.features.meta_model import CAPABILITIES as META_MODEL_CAPABILITIES
 from orivex.torch.features.meta_model import FEATURES as META_MODEL_FEATURES
 from orivex.torch.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
@@ -30,10 +34,10 @@ class UnsupportedFeatureDeviceError(ValueError):
 
 
 DEFAULT_ENGINE = TensorEngine(
-    DISTRIBUTION_FEATURES + META_MODEL_FEATURES,
-    DISTRIBUTION_INTERMEDIATES + META_MODEL_INTERMEDIATES,
+    DISTRIBUTION_FEATURES + META_MODEL_FEATURES + FITNESS_DISTANCE_FEATURES,
+    DISTRIBUTION_INTERMEDIATES + META_MODEL_INTERMEDIATES + FITNESS_DISTANCE_INTERMEDIATES,
 )
-CAPABILITIES = DISTRIBUTION_CAPABILITIES + META_MODEL_CAPABILITIES
+CAPABILITIES = DISTRIBUTION_CAPABILITIES + META_MODEL_CAPABILITIES + FITNESS_DISTANCE_CAPABILITIES
 
 
 def _supported_feature_names(
@@ -53,12 +57,18 @@ def compute(
     features: str | tuple[str, ...] | list[str],
     *,
     y_normalization: YNormalization = "minmax",
+    options: FeatureOptions | None = None,
 ) -> ComputationResult[torch.Tensor]:
     """Compute tensor features with min-max objective normalization by default.
 
     ``y_normalization="none"`` preserves raw canonical objectives; ``"zscore"`` uses
     population standard deviation. Min-max preprocessing is piecewise differentiable.
     All modes preserve the sample's tensors, dtype, device, and autograd history.
+    ``options`` is a nested mapping keyed by feature group, for example
+    ``{"fitness_distance": {"proportion_of_best": 0.25}}``. Omit it to use defaults.
+    Unknown groups and option names are rejected. Fitness-distance features always use
+    Euclidean distances to the best selected observation. Effective options are recorded
+    in ``result.metadata.options`` as an immutable snapshot.
     """
 
     if not isinstance(sample, TensorLandscapeSample):
@@ -73,7 +83,12 @@ def compute(
         raise UnsupportedFeatureDeviceError(
             f"features are not available on device type {sample.device_type!r}: {joined}"
         )
-    return DEFAULT_ENGINE.compute(sample, feature_names, y_normalization=y_normalization)
+    return DEFAULT_ENGINE.compute(
+        sample,
+        feature_names,
+        y_normalization=y_normalization,
+        options=options,
+    )
 
 
 def list_features() -> tuple[FeatureSpec, ...]:

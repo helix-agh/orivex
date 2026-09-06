@@ -156,6 +156,12 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
         "ela_meta.lin_w_interact.adj_r2",
         "ela_meta.quad_simple.adj_r2",
         "ela_meta.quad_w_interact.adj_r2",
+        "fitness_distance.distance_mean",
+        "fitness_distance.distance_std",
+        "fitness_distance.fd_correlation",
+        "fitness_distance.fd_cov",
+        "fitness_distance.fitness_mean",
+        "fitness_distance.fitness_std",
     )
     assert tuple(capability.feature_name for capability in capabilities) == (
         "ela_distr.kurtosis",
@@ -165,10 +171,18 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
         "ela_meta.lin_w_interact.adj_r2",
         "ela_meta.quad_simple.adj_r2",
         "ela_meta.quad_w_interact.adj_r2",
+        "fitness_distance.distance_mean",
+        "fitness_distance.distance_std",
+        "fitness_distance.fd_correlation",
+        "fitness_distance.fd_cov",
+        "fitness_distance.fitness_mean",
+        "fitness_distance.fitness_std",
     )
     assert all(capability.backend == "torch" for capability in capabilities)
     assert all(capability.autograd == "piecewise" for capability in capabilities)
-    assert all(item.autograd == "smooth" for item in list_capabilities(y_normalization="none"))
+    for item in list_capabilities(y_normalization="none"):
+        expected = "piecewise" if item.feature_name.startswith("fitness_distance.") else "smooth"
+        assert item.autograd == expected
     assert all(spec is numpy_specs[spec.name] for spec in specs)
 
 
