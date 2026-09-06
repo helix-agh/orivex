@@ -14,7 +14,6 @@ import platform
 import subprocess
 import sys
 import warnings
-from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -25,56 +24,78 @@ from threadpoolctl import threadpool_info, threadpool_limits
 from orivex import LandscapeSample, compute, list_features
 
 QUADRATIC = "ela_meta.quad_w_interact.adj_r2"
+
+
+@dataclass(frozen=True)
+class Family:
+    module: str
+    calculator: str
+    features: tuple[str, ...]
+    settings: dict
+
+
 FAMILIES = {
-    "ela_distr": ("skewness", "kurtosis"),
-    "ela_meta": (
-        "lin_simple.adj_r2",
-        "lin_simple.intercept",
-        "lin_w_interact.adj_r2",
-        "quad_simple.adj_r2",
-        "quad_w_interact.adj_r2",
+    "ela_distr": Family(
+        "classical_ela_features",
+        "calculate_ela_distribution",
+        ("skewness", "kurtosis"),
+        {"ela_distr_skewness_type": 3, "ela_distr_kurtosis_type": 3},
     ),
-    "fitness_distance": (
-        "fitness_std",
-        "fitness_mean",
-        "distance_mean",
-        "distance_std",
-        "fd_cov",
-        "fd_correlation",
+    "ela_meta": Family(
+        "classical_ela_features",
+        "calculate_ela_meta",
+        (
+            "lin_simple.adj_r2",
+            "lin_simple.intercept",
+            "lin_w_interact.adj_r2",
+            "quad_simple.adj_r2",
+            "quad_w_interact.adj_r2",
+        ),
+        {},
     ),
-    "ic": ("h_max", "eps_s", "eps_max", "eps_ratio", "m0"),
-    "nbc": (
-        "nn_nb.sd_ratio",
-        "nn_nb.mean_ratio",
-        "nn_nb.cor",
-        "dist_ratio.coeff_var",
-        "nb_fitness.cor",
+    "fitness_distance": Family(
+        "misc_features",
+        "calculate_fitness_distance_correlation",
+        (
+            "fitness_std",
+            "fitness_mean",
+            "distance_mean",
+            "distance_std",
+            "fd_cov",
+            "fd_correlation",
+        ),
+        {"proportion_of_best": 0.1, "minimize": True, "minkowski_p": 2},
+    ),
+    "ic": Family(
+        "classical_ela_features",
+        "calculate_information_content",
+        ("h_max", "eps_s", "eps_max", "eps_ratio", "m0"),
+        {
+            "ic_sorting": "nn",
+            "ic_nn_neighborhood": 20,
+            "ic_settling_sensitivity": 0.05,
+            "ic_info_sensitivity": 0.5,
+        },
+    ),
+    "nbc": Family(
+        "classical_ela_features",
+        "calculate_nbc",
+        (
+            "nn_nb.sd_ratio",
+            "nn_nb.mean_ratio",
+            "nn_nb.cor",
+            "dist_ratio.coeff_var",
+            "nb_fitness.cor",
+        ),
+        {"fast_k": 0.05, "dist_tie_breaker": "first", "minimize": True},
     ),
 }
-FEATURES = tuple(f"{family}.{name}" for family, names in FAMILIES.items() for name in names)
-CALCULATORS = {
-    "ela_distr": ("classical_ela_features", "calculate_ela_distribution"),
-    "ela_meta": ("classical_ela_features", "calculate_ela_meta"),
-    "fitness_distance": ("misc_features", "calculate_fitness_distance_correlation"),
-    "ic": ("classical_ela_features", "calculate_information_content"),
-    "nbc": ("classical_ela_features", "calculate_nbc"),
-}
+FEATURES = tuple(f"{family}.{name}" for family, spec in FAMILIES.items() for name in spec.features)
+ORIVEX_OPTIONS = {"fitness_distance": {"proportion_of_best": 0.1}}
 # A predeclared float64 diagnostic threshold, not a proof of mathematical correctness.
 # Absolute tolerance handles reference zeros; relative tolerance handles raw BBOB scales.
 DEFAULT_ATOL = 1e-10
 DEFAULT_RTOL = 1e-8
-REFERENCE_SETTINGS = {
-    "ela_distr": {"ela_distr_skewness_type": 3, "ela_distr_kurtosis_type": 3},
-    "ela_meta": {},
-    "fitness_distance": {"proportion_of_best": 0.1, "minimize": True, "minkowski_p": 2},
-    "ic": {
-        "ic_sorting": "nn",
-        "ic_nn_neighborhood": 20,
-        "ic_settling_sensitivity": 0.05,
-        "ic_info_sensitivity": 0.5,
-    },
-    "nbc": {"fast_k": 0.05, "dist_tie_breaker": "first", "minimize": True},
-}
 
 
 @dataclass(frozen=True)
@@ -94,7 +115,10 @@ class Case:
 
 
 def write_json(path: Path, data: object) -> None:
-    path.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    # Reports should only see complete JSON files, even if a run is interrupted.
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def source_hashes(root: Path) -> dict[str, str]:
@@ -119,11 +143,11 @@ def load_reference(root: Path) -> dict:
     sys.path.insert(0, str(root))
     try:
         calculators = {}
-        for family, (module_name, function_name) in CALCULATORS.items():
-            module = importlib.import_module(f"pflacco.{module_name}")
+        for family, spec in FAMILIES.items():
+            module = importlib.import_module(f"pflacco.{spec.module}")
             if Path(module.__file__).resolve().parent != root / "pflacco":
                 raise RuntimeError(f"Wrong pflacco module loaded: {module.__file__}")
-            calculators[family] = getattr(module, function_name)
+            calculators[family] = getattr(module, spec.calculator)
         return calculators
     finally:
         sys.path.pop(0)
@@ -215,6 +239,22 @@ def quadratic_oracle(x: np.ndarray, y: np.ndarray) -> float:
     return float(1 - (1 - model.score(design, y)) * (len(y) - 1) / (len(y) - design.shape[1] - 1))
 
 
+def check_quadratic(row: dict, x: np.ndarray, y: np.ndarray) -> None:
+    """Attach the independent check; a passing oracle never waives a reference failure."""
+    try:
+        oracle = scalar(quadratic_oracle(x, y))
+    except Exception as exc:
+        oracle = scalar(None, status="error", message=f"{type(exc).__name__}: {exc}")
+    row.update({f"oracle_{key}": value for key, value in oracle.items()})
+    metrics = dict.fromkeys(("absolute_error", "relative_error", "within_tolerance"))
+    if oracle["status"] == "ok" and row["orivex_status"] == "ok":
+        errors = error_metrics(row["orivex_value"], oracle["value"], row["atol"], row["rtol"])
+        metrics = {key: errors[key] for key in metrics}
+        if row["comparison"] == "definition_difference" and errors["within_tolerance"]:
+            row["verdict"] = "pass"
+    row.update({f"oracle_{key}": value for key, value in metrics.items()})
+
+
 def collect_family(calculator, x: np.ndarray, y: np.ndarray, settings: dict) -> tuple[dict, list]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -230,6 +270,29 @@ def collect_family(calculator, x: np.ndarray, y: np.ndarray, settings: dict) -> 
                 "__error__": scalar(None, status="error", message=f"{type(exc).__name__}: {exc}")
             }
     return values, [f"{item.category.__name__}: {item.message}" for item in caught]
+
+
+def collect_orivex(sample: LandscapeSample) -> tuple[dict, list]:
+    """Compute once; the engine already isolates expected numerical failures per feature."""
+    engine_warnings = []
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            result = compute(
+                sample, FEATURES, workers=1, y_normalization=None, options=ORIVEX_OPTIONS
+            )
+            values = {
+                name: scalar(item.value, status=item.status.value, message=item.message)
+                for name, item in result.values.items()
+            }
+            engine_warnings = list(result.metadata.warnings)
+        except Exception as exc:
+            values = {
+                "__error__": scalar(None, status="error", message=f"{type(exc).__name__}: {exc}")
+            }
+    return values, engine_warnings + [
+        f"{item.category.__name__}: {item.message}" for item in caught
+    ]
 
 
 def evaluate_case(case: Case, calculators: dict, output: Path, atol: float, rtol: float) -> dict:
@@ -263,75 +326,40 @@ def evaluate_case(case: Case, calculators: dict, output: Path, atol: float, rtol
             "unique_objectives": len(np.unique(y)),
             "minimum_objective_ties": int(np.count_nonzero(y == y.min())),
         },
-        "outputs": {},
-        "warnings": {},
+        "pflacco_only": {},
+        "warnings": {"pflacco": {}},
         "rows": [],
     }
+    current, details["warnings"]["orivex"] = collect_orivex(sample)
+    current_missing = current.get("__error__", scalar(None, status="missing"))
     start = int(np.lexsort(tuple(x[:, col] for col in reversed(range(case.dimension))))[0])
-    for family, suffixes in FAMILIES.items():
-        names = tuple(f"{family}.{suffix}" for suffix in suffixes)
-        settings = dict(REFERENCE_SETTINGS[family])
+    for family, spec in FAMILIES.items():
+        settings = dict(spec.settings)
         if family == "ic":
             settings.update(
                 ic_nn_start=start,
                 seed=case.seed,
                 ic_epsilon=np.insert(10.0 ** np.linspace(-5.0, 15.0, 1000), 0, 0.0),
             )
-        reference, reference_warnings = collect_family(calculators[family], x, y, settings)
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            try:
-                result = compute(
-                    sample,
-                    names,
-                    workers=1,
-                    y_normalization=None,
-                    options={"fitness_distance": {"proportion_of_best": 0.1}},
-                )
-                current = {
-                    name: scalar(item.value, status=item.status.value, message=item.message)
-                    for name, item in result.values.items()
-                }
-                engine_warnings = list(result.metadata.warnings)
-            except Exception as exc:
-                current = {
-                    name: scalar(None, status="error", message=f"{type(exc).__name__}: {exc}")
-                    for name in names
-                }
-                engine_warnings = []
-        details["outputs"][family] = {"orivex": current, "pflacco": reference}
-        details["warnings"][family] = {
-            "pflacco": reference_warnings,
-            "orivex": engine_warnings
-            + [f"{item.category.__name__}: {item.message}" for item in caught],
-        }
-        for name in names:
-            expected = reference.get(
-                name, reference.get("__error__", scalar(None, status="missing"))
-            )
-            row = compare(
-                name, current.get(name, scalar(None, status="missing")), expected, atol, rtol
-            )
+        reference, details["warnings"]["pflacco"][family] = collect_family(
+            calculators[family], x, y, settings
+        )
+        details["pflacco_only"].update(
+            {
+                name: value
+                for name, value in reference.items()
+                if name not in (*FEATURES, "__error__")
+            }
+        )
+        reference_missing = reference.get("__error__", scalar(None, status="missing"))
+        for suffix in spec.features:
+            name = f"{family}.{suffix}"
+            actual = current.get(name, current_missing)
+            expected = reference.get(name, reference_missing)
+            row = compare(name, actual, expected, atol, rtol)
             row.update(asdict(case), case_id=case.key, function_name=problem.meta_data.name)
             if name == QUADRATIC:
-                try:
-                    oracle = scalar(quadratic_oracle(x, y))
-                except Exception as exc:
-                    oracle = scalar(None, status="error", message=f"{type(exc).__name__}: {exc}")
-                row.update(
-                    oracle_value=oracle["value"],
-                    oracle_status=oracle["status"],
-                    oracle_message=oracle["message"],
-                    oracle_absolute_error=None,
-                    oracle_relative_error=None,
-                    oracle_within_tolerance=None,
-                )
-                if oracle["status"] == "ok" and row["orivex_status"] == "ok":
-                    metrics = error_metrics(row["orivex_value"], oracle["value"], atol, rtol)
-                    for key in ("absolute_error", "relative_error", "within_tolerance"):
-                        row[f"oracle_{key}"] = metrics[key]
-                    if row["comparison"] == "definition_difference" and metrics["within_tolerance"]:
-                        row["verdict"] = "pass"
+                check_quadratic(row, x, y)
             details["rows"].append(row)
     return details
 
@@ -356,43 +384,6 @@ def run_case(task: tuple) -> dict:
         }
 
 
-def summarize(rows: list[dict]) -> list[dict]:
-    summaries = []
-    for feature in FEATURES:
-        for dimension in [None, *sorted({row["dimension"] for row in rows})]:
-            selected = [
-                row
-                for row in rows
-                if row["feature"] == feature
-                and (dimension is None or row["dimension"] == dimension)
-            ]
-            summary = {
-                "feature": feature,
-                "dimension": dimension,
-                "cases": len(selected),
-                "counts": dict(Counter(row["comparison"] for row in selected)),
-                "review_required": sum(row["verdict"] != "pass" for row in selected),
-                "exact_matches": sum(row["absolute_error"] == 0 for row in selected),
-                "relative_undefined": sum(row["reference_zero"] is True for row in selected),
-                "near_zero_reference": sum(row["reference_near_zero"] is True for row in selected),
-                "error_overflows": sum(row["error_overflow"] for row in selected),
-            }
-            for metric in ("absolute_error", "relative_error", "tolerance_ratio"):
-                finite = [row for row in selected if row[metric] is not None]
-                values = [row[metric] for row in finite]
-                summary[metric] = {
-                    "count": len(values),
-                    "median": float(np.median(values)) if values else None,
-                    "p95": float(np.percentile(values, 95)) if values else None,
-                    "max": max(values) if values else None,
-                    "worst_case": max(finite, key=lambda row: row[metric])["case_id"]
-                    if finite
-                    else None,
-                }
-            summaries.append(summary)
-    return summaries
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pflacco-root", type=Path, default=Path("../pflacco"))
@@ -409,7 +400,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rtol", type=float, default=DEFAULT_RTOL)
     parser.add_argument("--no-plots", action="store_true")
     parser.add_argument(
-        "--plot-only", action="store_true", help="Regenerate plots from output/report.json"
+        "--plot-only", action="store_true", help="Regenerate reports from saved case files"
     )
     args = parser.parse_args(argv)
     if args.plot_only:
@@ -435,38 +426,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
-def main(argv: list[str] | None = None) -> int:
-    from correctness_report import write_report
-
-    args = parse_args(argv)
-    if args.plot_only:
-        report = json.loads((args.output / "report.json").read_text(encoding="utf-8"))
-        write_report(args.output, report, plots=True)
-        return 0
-    specs = {spec.name: spec for spec in list_features()}
-    if set(specs) != set(FEATURES):
-        raise RuntimeError(
-            "Feature registry changed; update the explicit pflacco comparison mapping"
-        )
-    # Fail before creating an output directory if the reference/dependencies cannot load.
-    load_reference(args.pflacco_root)
-    import ioh  # noqa: F401
-
-    args.output.mkdir(parents=True, exist_ok=False)
-    (args.output / "cases").mkdir()
+def build_manifest(args: argparse.Namespace, case_count: int, workers: int, specs: dict) -> dict:
     root = Path(__file__).resolve().parents[1]
-    cases = [
-        Case(f, d, i, s, args.sample_multiplier * d)
-        for f in args.functions
-        for d in args.dimensions
-        for i in args.instances
-        for s in args.seeds
-    ]
-    workers = min(len(cases), (os.cpu_count() or 1) if args.workers == -1 else args.workers)
-    manifest = {
-        "schema_version": 1,
+    return {
+        "schema_version": 2,
         "complete": False,
-        "expected_cases": len(cases),
+        "expected_cases": case_count,
         "settings": {
             **{
                 key: str(value) if isinstance(value, Path) else value
@@ -480,10 +445,10 @@ def main(argv: list[str] | None = None) -> int:
             "feature_normalization": None,
             "sampling": "uniform / PCG64",
             "seed_sequence": "[seed, function, instance, dimension, observations]",
-            "pflacco_parameters": REFERENCE_SETTINGS,
+            "pflacco_parameters": {family: spec.settings for family, spec in FAMILIES.items()},
             "ic_start": "lexicographically smallest observation",
             "ic_epsilon": "insert(10 ** linspace(-5, 15, 1000), 0, 0)",
-            "orivex_options": {"fitness_distance": {"proportion_of_best": 0.1}},
+            "orivex_options": ORIVEX_OPTIONS,
         },
         "environment": {
             "python": platform.python_version(),
@@ -527,65 +492,83 @@ def main(argv: list[str] | None = None) -> int:
         "scope": "All implemented NumPy features and outputs of their five pflacco families; "
         "other pflacco families and Torch are outside this run. No timing measurements.",
     }
+
+
+def run_cases(tasks: list[tuple], workers: int):
+    """Yield case results, using the same worker function in serial and parallel runs."""
+    if workers == 1:
+        yield from map(run_case, tasks)
+        return
+    # Set before spawned interpreters import numerical libraries; avoid nested pools.
+    thread_env = (
+        "OPENBLAS_NUM_THREADS",
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    )
+    previous = {name: os.environ.get(name) for name in thread_env}
+    try:
+        for name in thread_env:
+            os.environ[name] = "1"
+        with ProcessPoolExecutor(
+            max_workers=workers, mp_context=multiprocessing.get_context("spawn")
+        ) as pool:
+            yield from pool.map(run_case, tasks)
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def main(argv: list[str] | None = None) -> int:
+    from correctness_report import write_report
+
+    args = parse_args(argv)
+    if args.plot_only:
+        write_report(args.output, plots=not args.no_plots)
+        return 0
+    specs = {spec.name: spec for spec in list_features()}
+    if set(specs) != set(FEATURES):
+        raise RuntimeError(
+            "Feature registry changed; update the explicit pflacco comparison mapping"
+        )
+    # Fail before creating an output directory if the reference/dependencies cannot load.
+    load_reference(args.pflacco_root)
+    import ioh  # noqa: F401
+
+    cases = [
+        Case(f, d, i, s, args.sample_multiplier * d)
+        for f in args.functions
+        for d in args.dimensions
+        for i in args.instances
+        for s in args.seeds
+    ]
+    workers = min(len(cases), (os.cpu_count() or 1) if args.workers == -1 else args.workers)
+    manifest = build_manifest(args, len(cases), workers, specs)
+    args.output.mkdir(parents=True, exist_ok=False)
+    (args.output / "cases").mkdir()
     write_json(args.output / "manifest.json", manifest)
     tasks = [
         (case, args.pflacco_root.resolve(), args.output.resolve(), args.atol, args.rtol)
         for case in cases
     ]
-    rows = []
-    extra_outputs = set()
-
-    def consume(results):
-        for index, result in enumerate(results, 1):
-            write_json(args.output / "cases" / f"{result['case_id']}.json", result)
-            rows.extend(result["rows"])
-            for family in result.get("outputs", {}).values():
-                extra_outputs.update(set(family["pflacco"]) - set(FEATURES) - {"__error__"})
-            reviews = sum(row["verdict"] != "pass" for row in result["rows"])
-            print(
-                f"[{index}/{len(cases)}] {result['case_id']}: {reviews} feature(s) require review",
-                flush=True,
-            )
-
-    if workers == 1:
-        consume(map(run_case, tasks))
-    else:
-        # Set before spawned interpreters import numerical libraries; avoid nested pools.
-        thread_env = (
-            "OPENBLAS_NUM_THREADS",
-            "OMP_NUM_THREADS",
-            "MKL_NUM_THREADS",
-            "VECLIB_MAXIMUM_THREADS",
-            "NUMEXPR_NUM_THREADS",
+    for index, result in enumerate(run_cases(tasks, workers), 1):
+        write_json(args.output / "cases" / f"{result['case_id']}.json", result)
+        reviews = sum(row["verdict"] != "pass" for row in result["rows"])
+        print(
+            f"[{index}/{len(cases)}] {result['case_id']}: {reviews} feature(s) require review",
+            flush=True,
         )
-        previous = {name: os.environ.get(name) for name in thread_env}
-        try:
-            for name in thread_env:
-                os.environ[name] = "1"
-            with ProcessPoolExecutor(
-                max_workers=workers, mp_context=multiprocessing.get_context("spawn")
-            ) as pool:
-                consume(pool.map(run_case, tasks))
-        finally:
-            for name, value in previous.items():
-                if value is None:
-                    os.environ.pop(name, None)
-                else:
-                    os.environ[name] = value
-    manifest.update(
-        complete=True, completed_cases=len(cases), pflacco_only_outputs=sorted(extra_outputs)
-    )
-    review_count = sum(row["verdict"] != "pass" for row in rows)
-    report = {
-        "manifest": manifest,
-        "rows": rows,
-        "summary": summarize(rows),
-        "review_required": review_count,
-    }
+    manifest.update(complete=True, completed_cases=len(cases))
     write_json(args.output / "manifest.json", manifest)
-    write_json(args.output / "report.json", report)
-    write_report(args.output, report, plots=not args.no_plots)
-    print(f"Saved {len(rows)} comparisons to {args.output}; {review_count} require review.")
+    report = write_report(args.output, plots=not args.no_plots)
+    review_count = report["review_required"]
+    print(
+        f"Saved {len(report['rows'])} comparisons to {args.output}; {review_count} require review."
+    )
     return 1 if review_count else 0
 
 

@@ -12,6 +12,7 @@ import pytest
 pytest.importorskip("threadpoolctl")
 
 import bbob_correctness as benchmark
+import correctness_report as reporting
 
 
 def test_relative_zero_is_undefined_but_absolute_error_is_checked():
@@ -104,6 +105,32 @@ def test_oracle_fits_complete_quadratic_and_rejects_rank_deficiency():
         benchmark.quadratic_oracle(np.column_stack([x[:, 0], x[:, 0]]), y)
 
 
+@pytest.mark.parametrize(
+    "current, reference, oracle, verdict",
+    [
+        (0.1, 0.9, 0.1, "pass"),
+        (0.1, 0.9, 0.2, "review"),
+        (0.1, None, 0.1, "review"),
+        (None, 0.9, 0.1, "review"),
+        (0.1, 0.9, np.nan, "review"),
+    ],
+)
+def test_quadratic_verdict_requires_valid_reference_and_matching_oracle(
+    monkeypatch, current, reference, oracle, verdict
+):
+    monkeypatch.setattr(benchmark, "quadratic_oracle", lambda x, y: oracle)
+    row = benchmark.compare(
+        benchmark.QUADRATIC,
+        benchmark.scalar(current),
+        benchmark.scalar(reference, status="error" if reference is None else "ok"),
+        1e-10,
+        1e-8,
+    )
+    benchmark.check_quadratic(row, np.zeros((2, 1)), np.zeros(2))
+    assert row["verdict"] == verdict
+    json.dumps(row, allow_nan=False)
+
+
 def test_summary_counts_failures_zeros_and_worst_cases():
     feature = benchmark.FEATURES[0]
     rows = []
@@ -111,7 +138,7 @@ def test_summary_counts_failures_zeros_and_worst_cases():
         row = benchmark.compare(feature, benchmark.scalar(a), benchmark.scalar(b), 1e-10, 1e-8)
         row.update(dimension=2, case_id=f"case{index}")
         rows.append(row)
-    summary = benchmark.summarize(rows)[0]
+    summary = reporting.summarize(rows)[0]
     assert summary["cases"] == 3
     assert summary["review_required"] == 2
     assert summary["exact_matches"] == 1
@@ -153,6 +180,7 @@ def test_raw_inputs_and_case_replay_with_reference_failure(tmp_path, monkeypatch
     original = benchmark.compute
 
     def track(sample, names, **kwargs):
+        assert names == benchmark.FEATURES
         assert kwargs["y_normalization"] is None
         assert kwargs["workers"] == 1
         observed.append((sample.x.copy(), sample.y.copy()))
@@ -167,6 +195,7 @@ def test_raw_inputs_and_case_replay_with_reference_failure(tmp_path, monkeypatch
     first = benchmark.evaluate_case(case, calculators, tmp_path, 1e-10, 1e-8)
     second = benchmark.evaluate_case(case, calculators, tmp_path, 1e-10, 1e-8)
     assert first["rows"] == second["rows"]
+    assert len(observed) == 2  # One orivex call per dataset, including replay.
     assert first["sample_fingerprint"] == second["sample_fingerprint"]
     assert len(first["rows"]) == 23
     assert all(row["orivex_status"] == "ok" for row in first["rows"])
@@ -178,19 +207,48 @@ def test_raw_inputs_and_case_replay_with_reference_failure(tmp_path, monkeypatch
         assert saved["y"].max() > 1  # Actual BBOB values, not min-max preprocessing.
 
 
-def test_plot_only_does_not_load_reference_or_compute(tmp_path, monkeypatch):
+def test_orivex_exception_preserves_reference_results(tmp_path, monkeypatch):
+    pytest.importorskip("ioh")
+    (tmp_path / "cases").mkdir()
+
+    def broken(*args, **kwargs):
+        warnings.warn("engine warning", UserWarning, stacklevel=1)
+        raise RuntimeError("engine failure")
+
+    def reference(x, y, **kwargs):
+        return dict.fromkeys(benchmark.FEATURES, 1.0)
+
+    monkeypatch.setattr(benchmark, "compute", broken)
+    monkeypatch.setattr(benchmark, "quadratic_oracle", lambda x, y: 1.0)
+    result = benchmark.evaluate_case(
+        benchmark.Case(1, 2, 1, 0, 200),
+        dict.fromkeys(benchmark.FAMILIES, reference),
+        tmp_path,
+        1e-10,
+        1e-8,
+    )
+    assert len(result["rows"]) == 23
+    assert all(row["pflacco_status"] == "ok" for row in result["rows"])
+    assert all(row["orivex_status"] == "error" for row in result["rows"])
+    assert all(row["verdict"] == "review" for row in result["rows"])
+    assert result["warnings"]["orivex"] == ["UserWarning: engine warning"]
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_plot_only_rebuilds_from_cases_without_loading_reference(tmp_path, monkeypatch, complete):
     pytest.importorskip("matplotlib")
     row = benchmark.compare(
         benchmark.FEATURES[0], benchmark.scalar(0), benchmark.scalar(0), 1e-10, 1e-8
     )
     row.update(dimension=2, function=1, case_id="test")
-    report = {
-        "manifest": {"completed_cases": 1},
-        "rows": [row],
-        "summary": benchmark.summarize([row]),
-        "review_required": 0,
-    }
-    benchmark.write_json(tmp_path / "report.json", report)
+    manifest = {"complete": complete, "expected_cases": 1 if complete else 2}
+    benchmark.write_json(tmp_path / "manifest.json", manifest)
+    (tmp_path / "cases").mkdir()
+    benchmark.write_json(
+        tmp_path / "cases" / "test.json",
+        {"rows": [row], "pflacco_only": {"extra.feature": benchmark.scalar(2)}},
+    )
+    (tmp_path / "summary.csv").write_text("stale summary", encoding="utf-8")
 
     def forbidden(*args, **kwargs):
         pytest.fail("plot-only attempted feature computation or reference import")
@@ -201,7 +259,21 @@ def test_plot_only_does_not_load_reference_or_compute(tmp_path, monkeypatch):
     assert (tmp_path / "plots" / f"{benchmark.FEATURES[0]}.png").is_file()
     assert (tmp_path / "plots" / "heatmap_d2.pdf").is_file()
     assert (tmp_path / "comparisons.csv").read_text().count("test") == 1
+    assert "stale summary" not in (tmp_path / "summary.csv").read_text()
+    report = reporting.load_report(tmp_path)
+    assert report["summary"][0]["exact_matches"] == 1
+    assert report["completed_cases"] == 1
+    assert report["pflacco_only_outputs"] == ["extra.feature"]
+    assert f"Run complete: {complete}" in (tmp_path / "README.md").read_text()
+    assert json.loads((tmp_path / "manifest.json").read_text()) == manifest
+    assert not (tmp_path / "report.json").exists()
     with (tmp_path / "review.csv").open(newline="") as stream:
         reader = csv.DictReader(stream)
         assert "feature" in reader.fieldnames
         assert list(reader) == []
+
+
+def test_reporting_requires_completed_case_files(tmp_path):
+    benchmark.write_json(tmp_path / "manifest.json", {"complete": False, "expected_cases": 1})
+    with pytest.raises(ValueError, match="No completed case files"):
+        reporting.load_report(tmp_path)

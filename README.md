@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/orivex-lockup-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="assets/orivex-lockup-light.png">
-    <img alt="orivex" src="assets/orivex-lockup-light.png" width="440">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/helix-agh/orivex/main/assets/orivex-lockup-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/helix-agh/orivex/main/assets/orivex-lockup-light.png">
+    <img alt="orivex" src="https://raw.githubusercontent.com/helix-agh/orivex/main/assets/orivex-lockup-light.png" width="440">
   </picture>
 </p>
 
@@ -30,7 +30,15 @@ A NumPy/SciPy core is complemented by an optional differentiable PyTorch backend
 
 ## Installation
 
-Python 3.10 or newer is required. The package is not published yet; install from a checkout:
+Python 3.10 or newer is required. Install from PyPI:
+
+```bash
+pip install orivex
+```
+
+Add the optional differentiable PyTorch backend with `pip install "orivex[torch]"`.
+
+To work from a checkout instead:
 
 ```bash
 git clone https://github.com/helix-agh/orivex.git
@@ -38,8 +46,7 @@ cd orivex
 uv sync
 ```
 
-With pip, run `python -m pip install -e .`. Add the optional PyTorch backend with
-`uv sync --extra torch` or `python -m pip install -e ".[torch]"`.
+With pip, run `python -m pip install -e .` (add `".[torch]"` for the PyTorch backend).
 
 ## Quick start
 
@@ -65,8 +72,8 @@ canonical objectives. Undefined features return an `invalid` status with an expl
 
 Read the **[documentation](https://helix-agh.github.io/orivex/)** for installation, feature
 selection, normalization, fitness-distance conventions, PyTorch support, and API reference.
-The [feature overview](docs/features/index.md), [contributing guide](docs/development/contributing.md),
-and [benchmark guide](docs/development/benchmarks.md) are also available in this checkout.
+The [feature overview](https://helix-agh.github.io/orivex/features/), [contributing guide](https://helix-agh.github.io/orivex/development/contributing/),
+and [benchmark guide](https://helix-agh.github.io/orivex/development/benchmarks/) are also available.
 
 Preview the documentation locally:
 
@@ -75,8 +82,8 @@ uv sync --extra docs
 uv run --no-sync mkdocs serve
 ```
 
-See [documentation development](docs/development/documentation.md) for strict builds and deployment.
+See [documentation development](https://helix-agh.github.io/orivex/development/documentation/) for strict builds and deployment.
 
 ## License
 
-orivex is licensed under the [MIT License](LICENSE.txt).
+orivex is licensed under the [MIT License](https://github.com/helix-agh/orivex/blob/main/LICENSE.txt).

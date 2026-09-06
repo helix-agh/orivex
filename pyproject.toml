@@ -4,11 +4,39 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orivex"
-version = "0.0.0"
+version = "0.1.0"
 description = "A selective and fast exploratory landscape analysis engine."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
+authors = [{name = "Wojciech Achtelik", email = "wachtelik@gmail.com"}]
+maintainers = [{name = "Wojciech Achtelik", email = "wachtelik@gmail.com"}]
+keywords = [
+    "exploratory landscape analysis",
+    "ela",
+    "black-box optimization",
+    "benchmarking",
+    "bbob",
+    "feature extraction",
+    "numpy",
+    "pytorch",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
@@ -51,8 +79,17 @@ dev = [
     "ty>=0.0.74",
 ]
 
+[project.urls]
+Homepage = "https://helix-agh.github.io/orivex/"
+Documentation = "https://helix-agh.github.io/orivex/"
+Repository = "https://github.com/helix-agh/orivex"
+Issues = "https://github.com/helix-agh/orivex/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+orivex = ["py.typed"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"

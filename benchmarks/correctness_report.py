@@ -3,11 +3,72 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
+
+
+def summarize(rows: list[dict]) -> list[dict]:
+    summaries = []
+    for feature in dict.fromkeys(row["feature"] for row in rows):
+        for dimension in [None, *sorted({row["dimension"] for row in rows})]:
+            selected = [
+                row
+                for row in rows
+                if row["feature"] == feature
+                and (dimension is None or row["dimension"] == dimension)
+            ]
+            summary = {
+                "feature": feature,
+                "dimension": dimension,
+                "cases": len(selected),
+                "counts": dict(Counter(row["comparison"] for row in selected)),
+                "review_required": sum(row["verdict"] != "pass" for row in selected),
+                "exact_matches": sum(row["absolute_error"] == 0 for row in selected),
+                "relative_undefined": sum(row["reference_zero"] is True for row in selected),
+                "near_zero_reference": sum(row["reference_near_zero"] is True for row in selected),
+                "error_overflows": sum(row["error_overflow"] for row in selected),
+            }
+            for metric in ("absolute_error", "relative_error", "tolerance_ratio"):
+                finite = [row for row in selected if row[metric] is not None]
+                values = [row[metric] for row in finite]
+                summary[metric] = {
+                    "count": len(values),
+                    "median": float(np.median(values)) if values else None,
+                    "p95": float(np.percentile(values, 95)) if values else None,
+                    "max": max(values) if values else None,
+                    "worst_case": max(finite, key=lambda row: row[metric])["case_id"]
+                    if finite
+                    else None,
+                }
+            summaries.append(summary)
+    return summaries
+
+
+def load_report(output: Path) -> dict:
+    """Derive all report data from the manifest and completed case files."""
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    cases = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((output / "cases").glob("*.json"))
+    ]
+    if not cases:
+        raise ValueError(f"No completed case files found in {output / 'cases'}")
+    rows = [row for case in cases for row in case["rows"]]
+    return {
+        "manifest": manifest,
+        "completed_cases": len(cases),
+        "rows": rows,
+        "summary": summarize(rows),
+        "review_required": sum(row["verdict"] != "pass" for row in rows),
+        "pflacco_only_outputs": sorted(
+            {name for case in cases for name in case.get("pflacco_only", {})}
+        ),
+    }
 
 
 def write_csv(path: Path, rows: list[dict], *, fields: list[str] | None = None) -> None:
@@ -19,7 +80,8 @@ def write_csv(path: Path, rows: list[dict], *, fields: list[str] | None = None) 
         writer.writerows(rows)
 
 
-def write_report(output: Path, report: dict, *, plots: bool) -> None:
+def write_report(output: Path, *, plots: bool) -> dict:
+    report = load_report(output)
     rows = report["rows"]
     write_csv(output / "comparisons.csv", rows)
     flattened = []
@@ -40,7 +102,8 @@ def write_report(output: Path, report: dict, *, plots: bool) -> None:
     lines = [
         "# BBOB correctness report",
         "",
-        f"Datasets: {report['manifest']['completed_cases']}. Feature comparisons: {len(rows)}. "
+        f"Datasets: {report['completed_cases']}/{report['manifest']['expected_cases']}. "
+        f"Run complete: {report['manifest']['complete']}. Feature comparisons: {len(rows)}. "
         f"Requiring review: **{report['review_required']}**.",
         "",
         "Raw float64 objectives and feature values; NumPy backend. No timing measurements.",
@@ -70,6 +133,10 @@ def write_report(output: Path, report: dict, *, plots: bool) -> None:
         "`review.csv`. Dimension-specific summaries: `summary.csv`. Exact samples: "
         "`cases/*.npz`. Configuration and source hashes: `manifest.json`.",
         "",
+        "pflacco-only outputs (not compared): "
+        + (", ".join(f"`{name}`" for name in report["pflacco_only_outputs"]) or "none")
+        + ".",
+        "",
     ]
     if plots:
         plot_errors(output, report)
@@ -96,6 +163,7 @@ def write_report(output: Path, report: dict, *, plots: bool) -> None:
         for dimension in sorted({row["dimension"] for row in rows}):
             lines += [f"![Dimension {dimension}](plots/heatmap_d{dimension}.png)", ""]
     (output / "README.md").write_text("\n".join(lines), encoding="utf-8")
+    return report
 
 
 def plot_errors(output: Path, report: dict) -> None:
