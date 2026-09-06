@@ -28,8 +28,6 @@ for exploratory landscape analysis (ELA). Compute individually selected features
 points and objective values, with shared intermediates, explicit costs, and versioned definitions.
 A NumPy/SciPy core is complemented by an optional differentiable PyTorch backend.
 
-The project is pre-release and is not yet a drop-in replacement for `pflacco`.
-
 ## Installation
 
 Python 3.10 or newer is required. The package is not published yet; install from a checkout:
