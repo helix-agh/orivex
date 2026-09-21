@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `nbc.*` in the Torch backend. The graph is selected under `no_grad` and the
+  selected edge lengths are recomputed from `x`, so the four distance features
+  carry a design gradient; `nbc.nb_fitness.cor` also differentiates through `y`
+  at a locally fixed graph.
+- `nbc_soft.*`: five differentiable surrogates of the nearest-better features,
+  in both backends. A smooth first-success distribution over distance-ordered
+  candidates replaces the discrete "first strictly better neighbour" search, so
+  the statistics have a usable gradient with respect to `y`. They converge to
+  their exact `nbc.*` counterparts as the temperature approaches zero for
+  distinct objective values. Report the exact group; the surrogate is
+  temperature dependent and is not an NBC feature.
+- `nbc_soft` options group: `temperature` (default `0.003`) and
+  `rank_temperature` (default `0.5`). The gates always rank the objectives;
+  min-max gates were measured as the alternative and diverged from the exact
+  features 2.4 to 7.8 times further on BBOB, so they are not offered.
+
+### Changed
+
+- `result.metadata.options` now also reports the `nbc_soft` group; compare
+  individual groups rather than the whole snapshot.
+
 ## 0.1.0
 
 First public release. A selective and fast engine for exploratory landscape

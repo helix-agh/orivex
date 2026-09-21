@@ -162,6 +162,16 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
         "fitness_distance.fd_cov",
         "fitness_distance.fitness_mean",
         "fitness_distance.fitness_std",
+        "nbc.dist_ratio.coeff_var",
+        "nbc.nb_fitness.cor",
+        "nbc.nn_nb.cor",
+        "nbc.nn_nb.mean_ratio",
+        "nbc.nn_nb.sd_ratio",
+        "nbc_soft.dist_ratio.coeff_var",
+        "nbc_soft.nb_fitness.cor",
+        "nbc_soft.nn_nb.cor",
+        "nbc_soft.nn_nb.mean_ratio",
+        "nbc_soft.nn_nb.sd_ratio",
     )
     assert tuple(capability.feature_name for capability in capabilities) == (
         "ela_distr.kurtosis",
@@ -177,12 +187,22 @@ def test_discovery_exposes_shared_specs_and_literal_capabilities() -> None:
         "fitness_distance.fd_cov",
         "fitness_distance.fitness_mean",
         "fitness_distance.fitness_std",
+        "nbc.dist_ratio.coeff_var",
+        "nbc.nb_fitness.cor",
+        "nbc.nn_nb.cor",
+        "nbc.nn_nb.mean_ratio",
+        "nbc.nn_nb.sd_ratio",
+        "nbc_soft.dist_ratio.coeff_var",
+        "nbc_soft.nb_fitness.cor",
+        "nbc_soft.nn_nb.cor",
+        "nbc_soft.nn_nb.mean_ratio",
+        "nbc_soft.nn_nb.sd_ratio",
     )
     assert all(capability.backend == "torch" for capability in capabilities)
     assert all(capability.autograd == "piecewise" for capability in capabilities)
     for item in list_capabilities(y_normalization=None):
-        expected = "piecewise" if item.feature_name.startswith("fitness_distance.") else "smooth"
-        assert item.autograd == expected
+        piecewise = item.feature_name.startswith(("fitness_distance.", "nbc.", "nbc_soft."))
+        assert item.autograd == ("piecewise" if piecewise else "smooth")
     assert all(spec is numpy_specs[spec.name] for spec in specs)
 
 

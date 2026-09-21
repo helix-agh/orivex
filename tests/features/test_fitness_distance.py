@@ -140,7 +140,7 @@ def test_family_matches_pflacco_reference(case):
     for name, expected in case["expected"].items():
         assert result.values[name].status is FeatureStatus.OK
         assert result.values[name].value == pytest.approx(expected, rel=1e-12, abs=1e-14)
-    assert result.metadata.options == {"fitness_distance": case["options"]}
+    assert result.metadata.options["fitness_distance"] == case["options"]
     assert result.metadata.computed_intermediates == (
         "fitness_distance.selection",
         "fitness_distance.distances",
