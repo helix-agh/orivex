@@ -15,6 +15,10 @@ from orivex.features.meta_model import FEATURES as META_MODEL_FEATURES
 from orivex.features.meta_model import INTERMEDIATES as META_MODEL_INTERMEDIATES
 from orivex.features.nearest_better import FEATURES as NEAREST_BETTER_FEATURES
 from orivex.features.nearest_better import INTERMEDIATES as NEAREST_BETTER_INTERMEDIATES
+from orivex.features.nearest_better_soft import FEATURES as NEAREST_BETTER_SOFT_FEATURES
+from orivex.features.nearest_better_soft import (
+    INTERMEDIATES as NEAREST_BETTER_SOFT_INTERMEDIATES,
+)
 from orivex.normalization import YNormalization
 from orivex.options import FeatureOptions
 from orivex.result import ComputationResult
@@ -26,11 +30,13 @@ DEFAULT_ENGINE = Engine(
     + META_MODEL_FEATURES
     + INFORMATION_CONTENT_FEATURES
     + NEAREST_BETTER_FEATURES
+    + NEAREST_BETTER_SOFT_FEATURES
     + FITNESS_DISTANCE_FEATURES,
     DISTRIBUTION_INTERMEDIATES
     + META_MODEL_INTERMEDIATES
     + INFORMATION_CONTENT_INTERMEDIATES
     + NEAREST_BETTER_INTERMEDIATES
+    + NEAREST_BETTER_SOFT_INTERMEDIATES
     + FITNESS_DISTANCE_INTERMEDIATES,
 )
 

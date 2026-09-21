@@ -154,7 +154,7 @@ def test_family_matches_pflacco_reference(case):
     for name, expected in case["expected"].items():
         assert result.values[name].status is FeatureStatus.OK
         assert result.values[name].value.item() == pytest.approx(expected, rel=1e-12, abs=1e-14)
-    assert result.metadata.options == {"fitness_distance": case["options"]}
+    assert result.metadata.options["fitness_distance"] == case["options"]
 
 
 @pytest.mark.parametrize("mode", [None, "minmax"])
@@ -253,7 +253,7 @@ def test_family_float32_parity_and_tie_handling(mode):
 def test_dictionary_options_and_metadata_snapshot():
     options = {"fitness_distance": {"proportion_of_best": 1.0}}
     result = compute(sample_for(torch.arange(20.0)), "fitness_distance.*", options=options)
-    assert result.metadata.options == options
+    assert result.metadata.options["fitness_distance"] == options["fitness_distance"]
     options["fitness_distance"]["proportion_of_best"] = 0.5
     assert result.metadata.options["fitness_distance"]["proportion_of_best"] == 1.0
     with pytest.raises(TypeError):

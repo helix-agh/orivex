@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from orivex import LandscapeSample, compute
+from orivex.options import DEFAULTS
 from orivex.result import ExecutionMetadata
 
 
@@ -10,7 +11,8 @@ def test_options_are_copied_without_affecting_other_groups():
     options = {"fitness_distance": {"proportion_of_best": 0.5}}
     result = compute(sample, ["fitness_distance.*", "ela_distr.skewness"], options=options)
     assert options == {"fitness_distance": {"proportion_of_best": 0.5}}
-    assert result.metadata.options == options
+    assert result.metadata.options["fitness_distance"] == options["fitness_distance"]
+    assert set(result.metadata.options) == set(DEFAULTS)
     reference = compute(sample, "ela_distr.skewness")
     assert result.values["ela_distr.skewness"] == reference.values["ela_distr.skewness"]
     options["fitness_distance"]["proportion_of_best"] = 1.0
@@ -25,7 +27,7 @@ def test_options_are_copied_without_affecting_other_groups():
 def test_omitted_values_use_defaults_without_mutating_input(options):
     sample = LandscapeSample(np.arange(20.0)[:, None], np.arange(20.0) ** 2, [0], [20])
     result = compute(sample, "fitness_distance.*", options=options)
-    assert result.metadata.options == {"fitness_distance": {"proportion_of_best": 0.1}}
+    assert result.metadata.options == {group: dict(values) for group, values in DEFAULTS.items()}
     assert result.values == compute(sample, "fitness_distance.*").values
     assert options is None or "proportion_of_best" not in options.get("fitness_distance", {})
 
@@ -67,3 +69,29 @@ def test_metadata_validates_and_copies_options():
     assert metadata.options["fitness_distance"]["proportion_of_best"] == 0.25
     with pytest.raises(ValueError, match="unknown option"):
         ExecutionMetadata("abc", (), (), 0, 0, options={"fitness_distance": {"typo": 1}})
+
+
+@pytest.mark.parametrize(
+    "group_options, error, message",
+    [
+        ({"temperature": 0}, ValueError, "must be finite and positive"),
+        ({"temperature": -1.0}, ValueError, "must be finite and positive"),
+        ({"temperature": float("inf")}, ValueError, "must be finite and positive"),
+        ({"temperature": True}, ValueError, "must be finite and positive"),
+        ({"rank_temperature": 0}, ValueError, "must be finite and positive"),
+        ({"tau": 0.1}, ValueError, "unknown option"),
+        ({"gate_normalization": "rank"}, ValueError, "unknown option"),
+    ],
+)
+def test_soft_nearest_better_options_are_validated(group_options, error, message):
+    sample = LandscapeSample(np.arange(6.0)[:, None], np.arange(6.0) ** 2, [0], [6])
+    with pytest.raises(error, match=message):
+        compute(sample, "nbc_soft.*", options={"nbc_soft": group_options})
+
+
+def test_soft_nearest_better_options_reach_the_feature():
+    sample = LandscapeSample(np.arange(30.0)[:, None], (np.arange(30.0) % 7) ** 2.0, [0], [30])
+    sharp = compute(sample, "nbc_soft.*", options={"nbc_soft": {"temperature": 0.3}})
+    blurred = compute(sample, "nbc_soft.*", options={"nbc_soft": {"temperature": 1e-4}})
+    assert sharp.metadata.options["nbc_soft"]["temperature"] == 0.3
+    assert sharp.values != blurred.values
