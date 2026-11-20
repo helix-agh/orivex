@@ -68,7 +68,8 @@ for name, item in result.values.items():
 ```
 
 Objective values are min-max normalized by default. Pass `y_normalization=None` to use raw
-canonical objectives. Undefined features return an `invalid` status with an explanation.
+canonical objectives, or `y_normalization="rank"` to make every feature invariant to strictly
+increasing transforms of the objective. Undefined features return an `invalid` status with an explanation.
 
 ## Documentation
 

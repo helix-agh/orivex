@@ -5,11 +5,11 @@ torch = pytest.importorskip("torch")
 
 from orivex import LandscapeSample
 from orivex import compute as compute_numpy
-from orivex.torch import TensorLandscapeSample, compute, list_capabilities
+from orivex.torch import TensorLandscapeSample, compute, list_capabilities, list_features
 from orivex.torch.normalization import normalize_objectives
 
 
-@pytest.mark.parametrize("mode", [None, "minmax"])
+@pytest.mark.parametrize("mode", [None, "minmax", "rank"])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_numpy_parity_and_sense_canonicalization(mode, dtype):
     rng = np.random.default_rng(14)
@@ -30,7 +30,7 @@ def test_numpy_parity_and_sense_canonicalization(mode, dtype):
     torch.testing.assert_close(s.y, -y)
 
 
-@pytest.mark.parametrize("mode", [None, "minmax"])
+@pytest.mark.parametrize("mode", [None, "minmax", "rank"])
 def test_gradcheck_includes_normalization_and_regression(mode):
     x = torch.tensor(
         [[-2.0], [-1.0], [0.2], [0.8], [1.5], [2.0]], dtype=torch.float64, requires_grad=True
@@ -79,3 +79,40 @@ def test_invalid_normalization_is_rejected_by_compute_and_discovery(mode):
     sample = TensorLandscapeSample(x, x[:, 0].square(), [0], [6])
     with pytest.raises(ValueError, match="y_normalization"):
         compute(sample, "ela_distr.skewness", y_normalization=mode)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_rank_matches_numpy_for_every_torch_feature(dtype):
+    rng = np.random.default_rng(21)
+    x = rng.uniform(-4, 4, (60, 2))
+    y = np.round(np.sin(x[:, 0]) + x[:, 1] ** 2, 1)  # includes ties
+    sample = TensorLandscapeSample(
+        torch.tensor(x, dtype=dtype), torch.tensor(y, dtype=dtype), [-5, -5], [5, 5]
+    )
+    names = [spec.name for spec in list_features()]
+    result = compute(sample, names, y_normalization="rank")
+    expected = compute_numpy(LandscapeSample(x, y, [-5, -5], [5, 5]), names, y_normalization="rank")
+    for name, item in result.values.items():
+        assert item.status == expected.values[name].status
+        assert item.value.item() == pytest.approx(expected.values[name].value, abs=2e-5, rel=2e-5)
+    assert result.metadata.y_normalization_definition == "objective-rank-v1"
+
+
+def test_rank_tensor_preprocessing_is_connected_with_zero_objective_gradient():
+    y = torch.tensor([4.0, -1.0, 4.0, 9.0, 4.0, 2.0], dtype=torch.float64, requires_grad=True)
+    value, constant = normalize_objectives(y, "rank")
+    assert not constant
+    torch.testing.assert_close(
+        value.detach(), torch.tensor([0.6, 0.0, 0.6, 1.0, 0.6, 0.2], dtype=torch.float64)
+    )
+    value.sum().backward()
+    torch.testing.assert_close(y.grad, torch.zeros_like(y))
+    value, constant = normalize_objectives(torch.full((4,), 2.0), "rank")
+    assert constant
+    torch.testing.assert_close(value, torch.zeros(4))
+
+
+def test_rank_capabilities_note_zero_objective_gradients():
+    for capability in list_capabilities(y_normalization="rank"):
+        assert capability.autograd == "piecewise"
+        assert any("Rank preprocessing" in note for note in capability.notes)

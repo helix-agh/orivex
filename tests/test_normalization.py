@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from scipy.stats import rankdata
 
 from orivex import LandscapeSample, compute
 from orivex.normalization import normalize_objectives
@@ -112,3 +113,96 @@ def test_normalization_is_shared_once_per_request(monkeypatch):
     monkeypatch.setattr(engine, "normalize_objectives", count)
     compute(sample(), "*")
     assert calls == ["minmax"]
+
+
+INCREASING_TRANSFORMS = {
+    "affine": lambda y: 8 * y - 123,
+    "exp": lambda y: np.exp(y / 5) ** 3 + np.arctan(y),
+    "cubic": lambda y: (y - 18) ** 3 + 0.1 * y,
+    "log": lambda y: np.log1p(y - y.min()),
+    "piecewise": lambda y: np.where(y < 18, y, 1e3 * (y - 18) + 18),
+}
+
+
+def test_rank_preprocessing_uses_normalized_average_ranks():
+    y = np.array([4.0, -1.0, 4.0, 9.0, 4.0, 2.0])
+    values, constant = normalize_objectives(y, "rank")
+    assert not constant
+    np.testing.assert_array_equal(values, (rankdata(y, method="average") - 1) / (y.size - 1))
+    np.testing.assert_array_equal(values, [0.6, 0.0, 0.6, 1.0, 0.6, 0.2])
+    assert not values.flags.writeable
+    values, constant = normalize_objectives(np.full(5, 3.0), "rank")
+    assert constant
+    np.testing.assert_array_equal(values, np.zeros(5))
+
+
+def test_rank_preprocessing_matches_manual_raw_pipeline_for_every_feature():
+    original = sample()
+    transformed = (rankdata(original.y) - 1) / (original.y.size - 1)
+    rng = np.random.default_rng
+    expected = compute(sample(transformed), "*", rng=rng(5), y_normalization=None)
+    result = compute(original, "*", rng=rng(5), y_normalization="rank")
+    assert_same(result, expected)
+    assert result.metadata.y_normalization == "rank"
+    assert result.metadata.y_normalization_definition == "objective-rank-v1"
+
+
+@pytest.mark.parametrize("name", sorted(INCREASING_TRANSFORMS))
+def test_every_feature_is_invariant_to_increasing_transforms_under_rank(name):
+    original = sample()
+    transformed = INCREASING_TRANSFORMS[name](original.y)
+    # Precondition: the transform preserves the order of the floating-point values.
+    np.testing.assert_array_equal(rankdata(transformed), rankdata(original.y))
+    rng = np.random.default_rng
+    reference = compute(original, "*", rng=rng(9), y_normalization="rank")
+    result = compute(sample(transformed), "*", rng=rng(9), y_normalization="rank")
+    assert all(item.status.value == "ok" for item in reference.values.values())
+    assert_same(reference, result)
+    assert result.metadata.preprocessing_fingerprint != reference.metadata.preprocessing_fingerprint
+
+
+def test_rank_degenerate_features_depend_only_on_sample_size_without_ties():
+    x = np.random.default_rng(17).uniform(-4, 4, (80, 2))
+    features = [
+        "ela_distr.skewness",
+        "ela_distr.kurtosis",
+        "fitness_distance.fitness_mean",
+        "fitness_distance.fitness_std",
+    ]
+    first = compute(sample(17 + np.sin(x[:, 0]) + x[:, 1] ** 2), features, y_normalization="rank")
+    second = compute(sample(np.abs(x[:, 0] - x[:, 1])), features, y_normalization="rank")
+    assert first.values["ela_distr.skewness"].value == pytest.approx(0, abs=1e-12)
+    assert_same(first, second)
+    plateau = compute(sample(np.round(x[:, 1] ** 2)), features, y_normalization="rank")
+    assert plateau.values["ela_distr.skewness"].value != pytest.approx(0, abs=1e-3)
+
+
+def test_rank_constant_objectives_keep_feature_specific_statuses():
+    result = compute(
+        sample(np.full(80, 23.0)), ["ela_distr.*", "ela_meta.*"], y_normalization="rank"
+    )
+    assert result.metadata.constant_objective
+    assert result.values["ela_distr.skewness"].status.value == "invalid"
+    assert result.values["ela_meta.lin_simple.adj_r2"].status.value == "invalid"
+    assert result.values["ela_meta.lin_simple.intercept"].value == pytest.approx(0)
+
+
+def test_order_only_features_agree_between_minmax_and_rank():
+    order_only = {
+        "fitness_distance.distance_mean",
+        "fitness_distance.distance_std",
+        "ic.m0",
+        "nbc.dist_ratio.coeff_var",
+        "nbc.nn_nb.cor",
+        "nbc.nn_nb.mean_ratio",
+        "nbc.nn_nb.sd_ratio",
+    }
+    original = sample()
+    minmax = compute(original, "*", rng=np.random.default_rng(3), y_normalization="minmax")
+    rank = compute(original, "*", rng=np.random.default_rng(3), y_normalization="rank")
+    equal = {
+        name
+        for name, item in minmax.values.items()
+        if item.value == pytest.approx(rank.values[name].value, rel=1e-12, abs=1e-12)
+    }
+    assert equal == order_only

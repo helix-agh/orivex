@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `y_normalization="rank"`: features are computed from the min-max normalized
+  average ranks of the objective, `(r - 1) / (n - 1)`, so every feature is
+  invariant to strictly increasing transforms of the objective. Available in the
+  NumPy and Torch backends, recorded as `objective-rank-v1` in result metadata.
+  See [objective normalization](docs/user-guide/normalization.md#rank-preprocessing).
+
 ## 0.1.0
 
 First public release. A selective and fast engine for exploratory landscape

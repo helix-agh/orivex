@@ -12,7 +12,7 @@ normalized by default.
 | `features` | An exact name, `fnmatch` glob, or list/tuple of selectors; every selector must match |
 | `rng` | Optional NumPy generator for features that declare an RNG requirement |
 | `workers` | `1` by default; a positive integer or `-1` for supporting parallel kernels |
-| `y_normalization` | `"minmax"` (default) or `None` to disable normalization |
+| `y_normalization` | `"minmax"` (default), `"rank"` for rank-based preprocessing, or `None` to disable normalization |
 | `options` | Optional mapping of feature groups to settings; see [fitness-distance options](../user-guide/fitness-distance.md) |
 
 An unknown selector raises `UnknownFeatureSelection`. Invalid inputs or options raise errors.
