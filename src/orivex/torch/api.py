@@ -61,8 +61,10 @@ def compute(
 ) -> ComputationResult[torch.Tensor]:
     """Compute tensor features with min-max objective normalization by default.
 
+    ``y_normalization="rank"`` uses min-max normalized average ranks and
     ``y_normalization=None`` preserves raw canonical objectives.
-    Min-max preprocessing is piecewise differentiable.
+    Min-max preprocessing is piecewise differentiable. Rank preprocessing is piecewise
+    constant, so gradients with respect to ``y`` are zero.
     All modes preserve the sample's tensors, dtype, device, and autograd history.
     ``options`` is a nested mapping keyed by feature group, for example
     ``{"fitness_distance": {"proportion_of_best": 0.25}}``. Omit it to use defaults.
@@ -113,6 +115,19 @@ def list_capabilities(
                 notes=(
                     *item.notes,
                     "Min-max preprocessing is piecewise differentiable at extrema.",
+                ),
+            )
+            for item in capabilities
+        )
+    elif y_normalization == "rank":
+        capabilities = tuple(
+            replace(
+                item,
+                autograd="piecewise",
+                notes=(
+                    *item.notes,
+                    "Rank preprocessing is piecewise constant; gradients with respect to y "
+                    "are zero.",
                 ),
             )
             for item in capabilities
